@@ -59,7 +59,10 @@ lockedIn/lockedIn/lockedIn/
 ├── Models/
 │   ├── User.swift                 # User profile with @DocumentID, points, tier
 │   ├── FocusSession.swift         # Focus session + FeedItem
-│   ├── StatusTier.swift           # Tier enum, cosmetics, points system ✓
+│   ├── StatusTier.swift           # Tier enum, cosmetics, points system
+│   ├── StudyPost.swift            # Discover feed post (planned)
+│   ├── Vote.swift                 # Upvote/downvote on posts (planned)
+│   ├── Favorite.swift             # Bookmarked posts (planned)
 │   ├── UserClass.swift            # Class with grade + Study Stack (planned)
 │   ├── Dorm.swift                 # Dorm for competitions (planned)
 │   └── LeaderboardEntry.swift     # Leaderboard row model
@@ -78,14 +81,18 @@ lockedIn/lockedIn/lockedIn/
 │   │   ├── EditProfileView.swift
 │   │   └── OtherUserProfileView.swift
 │   ├── Social/
-│   │   ├── FeedView.swift         # Activity feed
+│   │   ├── FeedView.swift         # Activity feed (legacy)
+│   │   ├── StudyFeedView.swift    # Discover feed (planned)
+│   │   ├── StudyPostRow.swift     # Post card component (planned)
+│   │   ├── FavoritesView.swift    # Saved posts view (planned)
+│   │   ├── SharePostSheet.swift   # Share stack/tips form (planned)
 │   │   ├── SearchUsersView.swift
 │   │   └── FollowersListView.swift
 │   ├── Components/
-│   │   ├── TierRingView.swift     # Avatar ring with tier styling ✓
-│   │   ├── TierProgressCard.swift # Points + progress to next tier ✓
-│   │   ├── TierBadgeView.swift    # Inline tier badges ✓
-│   │   └── CloverView.swift       # ND shamrock accent component ✓
+│   │   ├── TierRingView.swift     # Avatar ring with tier styling
+│   │   ├── TierProgressCard.swift # Points + progress to next tier
+│   │   ├── TierBadgeView.swift    # Inline tier badges
+│   │   └── CloverView.swift       # ND shamrock accent component
 │   ├── Classes/                   # (planned)
 │   │   ├── AddClassView.swift
 │   │   ├── ClassDetailView.swift
@@ -99,6 +106,7 @@ lockedIn/lockedIn/lockedIn/
 │   ├── LeaderboardViewModel.swift
 │   ├── ProfileViewModel.swift
 │   ├── SocialViewModel.swift      # Follow/feed logic
+│   ├── StudyFeedViewModel.swift   # Discover feed (planned)
 │   ├── ClassViewModel.swift       # (planned)
 │   └── DormViewModel.swift        # (planned)
 ├── Services/
@@ -107,8 +115,8 @@ lockedIn/lockedIn/lockedIn/
 │   ├── CameraService.swift        # AVFoundation for verification
 │   └── ScreenTimeService.swift    # Family Controls API (optional)
 └── Utilities/
-    ├── Constants.swift            # Firebase collections, UI sizing, AppColors (dark mode palette)
-    └── Extensions.swift           # String, Date helpers, View modifiers (cardStyle, glows)
+    ├── Constants.swift            # Firebase collections, UI sizing, AppColors
+    └── Extensions.swift           # String, Date helpers, View modifiers
 ```
 
 ## Data Models
@@ -160,6 +168,29 @@ dorms/{dormId}
 ├── totalFocusedSeconds: Int       # Aggregated from members
 ├── memberCount: Int
 ├── weeklySeconds: Int             # Reset weekly for competitions
+
+posts/{postId}                     # Discover feed posts
+├── authorId: String
+├── postType: "study_stack" | "tips"
+├── studyTools: [String]?          # For stack posts
+├── tips: String?                  # For tips posts
+├── classId: String?               # If class-specific
+├── courseCode, courseName, professor, grade, gradeVerified
+├── authorDisplayName, authorPhotoURL, authorPoints  # Denormalized
+├── upvotes, downvotes, score: Int
+├── hotScore: Double               # Ranking algorithm result
+├── createdAt, updatedAt
+├── isEdited: Bool
+├── previousPostId: String?        # Link to original if re-shared
+
+votes/{voteId}                     # Vote tracking
+├── userId, postId: String
+├── voteType: -1 | 0 | 1           # down | none | up
+├── createdAt, updatedAt
+
+users/{userId}/favorites/{favoriteId}  # Bookmarked posts
+├── postId: String
+├── createdAt: Timestamp
 ```
 
 ### Grade Verification Flow
@@ -227,91 +258,55 @@ A mature, prestigious progression system (Reddit/Discord/Stack Overflow style, N
 | Diamond | Custom title text, exclusive frames |
 | Obsidian | All cosmetics + "Founding Member" badges |
 
-#### Implementation Files
-
-**Models:**
-- `StatusTier.swift` - Enum with thresholds, colors, titles, unlocks ✓
-- `CosmeticUnlock` - Enum for unlockable cosmetics ✓
-- `PointsAction` - Reference enum for points system ✓
-
-**Views:**
-- `TierRingView.swift` - Avatar ring component with tier-based styling ✓
-- `TierAvatarView` - Avatar wrapped with tier ring ✓
-- `TierProgressCard.swift` - Points display with progress to next tier ✓
-- `TierProgressCompact` - Single-line compact progress ✓
-- `TierBadgeView.swift` - Small inline tier indicator (4 styles) ✓
-- `TierTitleView` - Inline "◆ Gold Scholar" text ✓
-- `TierLabelView` - Icon + title + points for lists ✓
-
-**Integration Points:**
-- `ProfileHeaderView` - TierAvatarView around avatar, TierTitleView under name ✓
-- `ProfileView` - TierProgressCard added to profile ✓
-- `User.swift` - Added `points`, computed `tier`, `selectedTitle`, `selectedFrame`, `unlockedCosmetics` ✓
-- `OtherUserProfileView` - Integrate tier components (pending)
-- `LeaderboardView` - Add tier badges to rows (pending)
-- `FeedView` - Add tier badges to activity items (pending)
-
 #### Design Principles
 1. **Earned, not bought** - Status from studying, not purchases
 2. **Subtle progression** - Refined visual changes, not flashy
 3. **Optional display** - Users can show/hide tier elements
 4. **Consistent palette** - Tier colors complement dark mode + ND gold
 5. **No distractions** - Prestige is for profiles, not during focus sessions
-6. **Dark-first design** - All UI designed for dark backgrounds with gold/green accents
-
-#### Firestore Schema Addition
-```
-users/{userId}
-├── points: Int
-├── selectedTitle: String?        # Custom title if unlocked
-├── selectedFrame: String?        # Frame cosmetic ID
-├── unlockedCosmetics: [String]   # IDs of unlocked items
-```
 
 ## Development Roadmap
 
 | Phase | Features | Status |
 |-------|----------|--------|
-| **0a. Dark Mode** | Dark theme with ND gold/green accents, glows, clovers | ✓ Complete |
-| **0b. Status Tiers** | Points system, tier visuals, profile integration | **In Progress** |
+| **0b. Status Tiers** | Points awarding, remaining integrations | **In Progress** |
+| **0c. Discover Feed** | Reddit-like feed with upvotes, favorites, sharing | **Next** |
 | **1. Foundation** | Dorm field on profile, dorm leaderboard | Planned |
 | **2. Classes** | Add classes to profile, basic Study Stack per class | Planned |
 | **3. Verification** | Transcript upload, admin review dashboard | Planned |
 | **4. Discovery** | Search/filter by class, professor, grade | Planned |
 | **5. Monetization** | Premium tier, ads on free tier | Planned |
 
-### Phase 0a: Dark Mode - Complete
+### Phase 0b: Status Tiers - Remaining Tasks
 
 | Task | Status |
 |------|--------|
-| Constants.swift color palette | ✓ Complete |
-| Extensions.swift modifiers + glows | ✓ Complete |
-| lockedInApp.swift force dark mode | ✓ Complete |
-| LoginView.swift dark theme | ✓ Complete |
-| SignUpView.swift dark theme | ✓ Complete |
-| ContentView.swift gold tab bar | ✓ Complete |
-| FocusTimerView.swift gold accents | ✓ Complete |
-| ActiveSessionView.swift enhancements | ✓ Complete |
-| LeaderboardView.swift dark theme | ✓ Complete |
-| ProfileView.swift dark theme | ✓ Complete |
-| FeedView.swift dark theme | ✓ Complete |
-| CloverView.swift component | ✓ Complete |
-
-### Phase 0b: Status Tiers - Detailed Progress
-
-| Task | Status |
-|------|--------|
-| StatusTier.swift model | ✓ Complete |
-| TierRingView + TierAvatarView | ✓ Complete |
-| TierProgressCard | ✓ Complete |
-| TierBadgeView (4 styles) | ✓ Complete |
-| User.swift points/tier fields | ✓ Complete |
-| ProfileView integration | ✓ Complete |
 | OtherUserProfileView integration | Pending |
 | LeaderboardView tier badges | Pending |
 | FeedView tier badges | Pending |
 | Points awarding logic (FocusViewModel) | Pending |
 | Firestore migration for points field | Pending |
+
+### Phase 0c: Discover Feed
+
+Reddit-like activity feed where users share Study Stacks and Tips with upvote/downvote system.
+
+#### Core Features
+- **Share Posts**: Explicitly share stacks or tips to feed (separate posts)
+- **Voting**: Upvote/downvote affects feed ranking via hotScore
+- **Tier Boost**: Higher status users' content ranks higher
+- **Filtering**: Friends vs Everyone toggle
+- **Favorites**: Bookmark posts for easy reference
+- **Pro Filters**: Filter by class, grade (future premium feature)
+
+#### Ranking Algorithm
+```
+hotScore = (voteScore × tierMultiplier × timeDecay) + verificationBonus
+
+Tier Multipliers: Bronze=1.0, Silver=1.05, Gold=1.1, Platinum=1.2, Diamond=1.35, Obsidian=1.5
+Time Decay: Linear over 24 hours
+Verification Bonus: A=0.3, B=0.15, C=0.05
+```
 
 ## Key Patterns
 

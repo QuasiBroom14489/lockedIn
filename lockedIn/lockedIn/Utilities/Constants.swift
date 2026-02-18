@@ -30,15 +30,15 @@ enum Constants {
 }
 
 enum AppColors {
-    // MARK: - Dark Mode Backgrounds
-    static let background = Color(hex: "0D0D0D")
-    static let backgroundSecondary = Color(hex: "1A1A1A")
-    static let surface = Color(hex: "242424")
-    static let surfaceElevated = Color(hex: "2E2E2E")
+    // MARK: - Notre Dame Navy Backgrounds
+    static let background = Color(hex: "0C2340")
+    static let backgroundSecondary = Color(hex: "0F2A4A")
+    static let surface = Color(hex: "143254")
+    static let surfaceElevated = Color(hex: "1A3A5E")
 
     // MARK: - Borders
-    static let border = Color(hex: "3A3A3A")
-    static let borderSubtle = Color(hex: "2A2A2A")
+    static let border = Color(hex: "1E4468")
+    static let borderSubtle = Color(hex: "163050")
 
     // MARK: - Notre Dame Gold
     static let gold = Color(hex: "C7A32E")

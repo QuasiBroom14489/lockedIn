@@ -6,7 +6,9 @@ struct FeedView: View {
 
     var body: some View {
         NavigationStack {
-            Group {
+            ZStack {
+                AppColors.background.ignoresSafeArea()
+
                 if viewModel.isLoading {
                     ProgressView()
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -21,13 +23,16 @@ struct FeedView: View {
                                 FeedItemRow(item: item)
                             }
                             .listRowInsets(EdgeInsets(top: 12, leading: 16, bottom: 12, trailing: 16))
+                            .listRowBackground(AppColors.background)
                         }
                     }
                     .listStyle(.plain)
+                    .scrollContentBackground(.hidden)
                 }
             }
-            .background(AppColors.background)
             .navigationTitle("Activity")
+            .toolbarBackground(AppColors.background, for: .navigationBar)
+            .toolbarBackground(.visible, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
                     NavigationLink {
