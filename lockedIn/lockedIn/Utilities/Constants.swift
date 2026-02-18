@@ -8,6 +8,9 @@ enum Constants {
         static let followingCollection = "following"
         static let followersCollection = "followers"
         static let leaderboardCollection = "leaderboard"
+        static let studyPostsCollection = "studyPosts"
+        static let votesCollection = "votes"
+        static let favoritesCollection = "favorites"
     }
 
     enum Storage {

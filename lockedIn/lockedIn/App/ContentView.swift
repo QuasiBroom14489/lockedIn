@@ -19,9 +19,9 @@ struct ContentView: View {
                 }
                 .tag(1)
 
-            FeedView()
+            StudyFeedView()
                 .tabItem {
-                    Label("Activity", systemImage: "bell.fill")
+                    Label("Study Feed", systemImage: "book.pages.fill")
                 }
                 .tag(2)
 
