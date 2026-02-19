@@ -19,20 +19,25 @@ class FocusViewModel: ObservableObject {
     @Published var showSessionComplete = false
 
     @Published var completedSessionDuration: Int = 0
+    @Published var currentTip: String = Constants.Session.focusTips.first ?? "Stay focused."
 
     // MARK: - Services
 
-    let cameraService = CameraService()
     private let screenTimeService = ScreenTimeService.shared
     private let firebaseService = FirebaseService.shared
     private let authService = AuthService.shared
+    private let notificationService = NotificationService.shared
+    private let analyticsService = AnalyticsService.shared
 
     // MARK: - Private Properties
 
     private var timer: Timer?
+    private var tipTimer: Timer?
     private var sessionStartTime: Date?
     private var lifecycleObservers: [Any] = []
     private var cancellables = Set<AnyCancellable>()
+    private var isEndingSession = false
+    private var currentTipIndex = 0
 
     // MARK: - Computed Properties
 
@@ -69,9 +74,8 @@ class FocusViewModel: ObservableObject {
             return
         }
 
-        // Setup camera
-        cameraService.setupSession()
-        cameraService.startSession()
+        // Non-blocking permission check so a background end can notify users.
+        await notificationService.requestAuthorizationIfNeeded()
 
         // Start screen time blocking (if authorized)
         if screenTimeService.isAuthorized {
@@ -102,6 +106,9 @@ class FocusViewModel: ObservableObject {
         isPaused = false
 
         startTimer()
+        startTipRotation()
+
+        analyticsService.logFocusSessionStarted(durationGoal: selectedDurationMinutes * 60)
     }
 
     func pauseSession() {
@@ -115,8 +122,12 @@ class FocusViewModel: ObservableObject {
     }
 
     func endSession(early: Bool = false) async {
+        guard !isEndingSession else { return }
+        isEndingSession = true
+        defer { isEndingSession = false }
+
         stopTimer()
-        cameraService.stopSession()
+        stopTipRotation()
         screenTimeService.stopBlocking()
 
         guard let session = currentSession,
@@ -137,20 +148,28 @@ class FocusViewModel: ObservableObject {
         completedSession.verified = isValid && !early
         completedSession.completedAt = Date()
 
+        var pointsEarned = 0
+
         do {
             try await firebaseService.updateSession(completedSession, userId: userId)
 
-            if isValid {
-                // Update user's total focused time
-                if var user = try await firebaseService.getUser(id: userId) {
-                    user.totalFocusedSeconds += finalDuration
-                    user.updatedAt = Date()
-                    try await firebaseService.updateUser(user)
-                }
+            // Update user's totals and points with screen-time bonus.
+            if var user = try await firebaseService.getUser(id: userId) {
+                user.totalFocusedSeconds += finalDuration
 
-                completedSessionDuration = finalDuration
-                showSessionComplete = true
+                let basePoints = finalDuration / 60
+                let screenTimeBonus = calculateScreenTimeBonus(user: user)
+                pointsEarned = max(Int((Double(basePoints) * screenTimeBonus).rounded()), 0)
+                user.points += pointsEarned
+
+                user.updatedAt = Date()
+                try await firebaseService.updateUser(user)
             }
+
+            completedSessionDuration = finalDuration
+            showSessionComplete = true
+
+            analyticsService.logFocusSessionCompleted(durationSeconds: finalDuration, pointsEarned: pointsEarned)
         } catch {
             handleError(error)
         }
@@ -158,6 +177,29 @@ class FocusViewModel: ObservableObject {
         currentSession = nil
         isSessionActive = false
         remainingSeconds = 0
+    }
+
+    private func calculateScreenTimeBonus(user: User) -> Double {
+        let nonProductive = user.dailyNonProductiveMinutes
+        let total = max(user.dailyProductiveMinutes + user.dailyNonProductiveMinutes, 1)
+        let productiveRatio = Double(user.dailyProductiveMinutes) / Double(total)
+
+        let baseBonus: Double
+        switch nonProductive {
+        case ..<60:
+            baseBonus = 1.30
+        case 60..<120:
+            baseBonus = 1.15
+        case 120..<180:
+            baseBonus = 1.00
+        case 180..<240:
+            baseBonus = 0.90
+        default:
+            baseBonus = 0.80
+        }
+
+        let ratioAdjustment = productiveRatio >= 0.70 ? 0.10 : (productiveRatio >= 0.50 ? 0.05 : 0.0)
+        return min(baseBonus + ratioAdjustment, 1.50)
     }
 
     // MARK: - Timer Management
@@ -175,6 +217,39 @@ class FocusViewModel: ObservableObject {
     private func stopTimer() {
         timer?.invalidate()
         timer = nil
+    }
+
+    private func startTipRotation() {
+        guard !Constants.Session.focusTips.isEmpty else { return }
+
+        currentTipIndex = Int.random(in: 0..<Constants.Session.focusTips.count)
+        currentTip = Constants.Session.focusTips[currentTipIndex]
+
+        tipTimer?.invalidate()
+        let timer = Timer(timeInterval: Constants.Session.tipRotationInterval,
+                          target: self,
+                          selector: #selector(tipTimerFired(_:)),
+                          userInfo: nil,
+                          repeats: true)
+        tipTimer = timer
+        RunLoop.main.add(timer, forMode: .common)
+    }
+
+    private func stopTipRotation() {
+        tipTimer?.invalidate()
+        tipTimer = nil
+    }
+
+    private func advanceTip() {
+        guard !Constants.Session.focusTips.isEmpty else { return }
+        currentTipIndex = (currentTipIndex + 1) % Constants.Session.focusTips.count
+        currentTip = Constants.Session.focusTips[currentTipIndex]
+        analyticsService.logFocusTipDisplayed(tipIndex: currentTipIndex)
+    }
+
+    @objc private func tipTimerFired(_ timer: Timer) {
+        // We're on the main run loop; FocusViewModel is @MainActor, so this is safe.
+        advanceTip()
     }
 
     @objc private func timerFired(_ timer: Timer) {
@@ -200,7 +275,7 @@ class FocusViewModel: ObservableObject {
         lifecycleObservers = screenTimeService.setupAppLifecycleMonitoring(
             onBackground: { [weak self] in
                 Task { @MainActor in
-                    self?.handleAppBackgrounded()
+                    await self?.handleAppBackgrounded()
                 }
             },
             onForeground: { [weak self] in
@@ -211,14 +286,14 @@ class FocusViewModel: ObservableObject {
         )
     }
 
-    private func handleAppBackgrounded() {
+    private func handleAppBackgrounded() async {
         guard isSessionActive else { return }
 
-        // If Screen Time blocking is not enabled, pause the session
-        if !screenTimeService.isBlocking {
-            pauseSession()
-            showError(message: "Session paused. Return to the app to continue.")
-        }
+        let elapsed = max((selectedDurationMinutes * 60) - remainingSeconds, 0)
+        await endSession(early: true)
+        await notificationService.sendFocusSessionEndedInBackgroundNotification(focusedSeconds: elapsed)
+        analyticsService.logFocusSessionEndedBackground(durationSeconds: elapsed)
+        showError(message: "Session ended because you left the app.")
     }
 
     private func handleAppForegrounded() {

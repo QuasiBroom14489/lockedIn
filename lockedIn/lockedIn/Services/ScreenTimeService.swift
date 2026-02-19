@@ -5,6 +5,27 @@ import ManagedSettings
 import Combine
 import UIKit
 
+struct ScreenTimeMetrics: Codable {
+    var productiveMinutes: Int
+    var nonProductiveMinutes: Int
+    var totalMinutes: Int
+    var lastUpdated: Date
+
+    static var empty: ScreenTimeMetrics {
+        ScreenTimeMetrics(
+            productiveMinutes: 0,
+            nonProductiveMinutes: 0,
+            totalMinutes: 0,
+            lastUpdated: Date()
+        )
+    }
+}
+
+enum AppProductivityCategory {
+    case productive
+    case nonProductive
+}
+
 @MainActor
 class ScreenTimeService: ObservableObject {
     static let shared = ScreenTimeService()
@@ -15,6 +36,20 @@ class ScreenTimeService: ObservableObject {
 
     private let authorizationCenter = AuthorizationCenter.shared
     private let store = ManagedSettingsStore()
+    private let activityCenter = DeviceActivityCenter()
+    private let metricsDefaultsKey = "screen_time_metrics_cache_v1"
+    private static let activityName = DeviceActivityName("com.zanejohnson.lockedIn.daily")
+
+    // Initial category map for future scoring logic. Expand over time.
+    private let productiveBundleIds: Set<String> = [
+        "com.apple.MobileSMS", // Messaging can be productive for study coordination
+        "com.apple.mobilenotes",
+        "com.apple.Pages",
+        "com.apple.Keynote",
+        "com.apple.Numbers",
+        "com.notion.id",
+        "com.ankiapp.ios"
+    ]
 
     private init() {
         checkAuthorization()
@@ -78,6 +113,61 @@ class ScreenTimeService: ObservableObject {
         isBlocking = false
     }
 
+    // MARK: - Device Activity + Metrics
+
+    func startDeviceActivityMonitoring() async throws {
+        guard isAuthorized else {
+            throw ScreenTimeError.notAuthorized
+        }
+
+        let schedule = DeviceActivitySchedule(
+            intervalStart: DateComponents(hour: 0, minute: 0),
+            intervalEnd: DateComponents(hour: 23, minute: 59),
+            repeats: true
+        )
+
+        do {
+            try activityCenter.startMonitoring(Self.activityName, during: schedule)
+        } catch {
+            let mapped = ScreenTimeError.monitoringFailed(error.localizedDescription)
+            self.error = mapped
+            throw mapped
+        }
+    }
+
+    func fetchScreenTimeMetrics() async throws -> ScreenTimeMetrics {
+        guard isAuthorized else {
+            throw ScreenTimeError.notAuthorized
+        }
+
+        // Full per-app usage attribution requires a Device Activity Report extension.
+        // Until that layer is added, return cached values so profile/reward features can ship.
+        if let cached = loadCachedMetrics() {
+            return cached
+        }
+
+        let empty = ScreenTimeMetrics.empty
+        cacheMetrics(empty)
+        return empty
+    }
+
+    func cacheMetrics(_ metrics: ScreenTimeMetrics) {
+        guard let encoded = try? JSONEncoder().encode(metrics) else { return }
+        UserDefaults.standard.set(encoded, forKey: metricsDefaultsKey)
+    }
+
+    func categorizeApp(bundleIdentifier: String) -> AppProductivityCategory {
+        productiveBundleIds.contains(bundleIdentifier) ? .productive : .nonProductive
+    }
+
+    private func loadCachedMetrics() -> ScreenTimeMetrics? {
+        guard let data = UserDefaults.standard.data(forKey: metricsDefaultsKey),
+              let metrics = try? JSONDecoder().decode(ScreenTimeMetrics.self, from: data) else {
+            return nil
+        }
+        return metrics
+    }
+
     // MARK: - Alternative: App Lifecycle Detection
 
     // For devices without Screen Time API access, we can detect app backgrounding
@@ -118,6 +208,7 @@ enum ScreenTimeError: LocalizedError {
     case notAuthorized
     case authorizationFailed(String)
     case blockingFailed(String)
+    case monitoringFailed(String)
 
     var errorDescription: String? {
         switch self {
@@ -127,6 +218,8 @@ enum ScreenTimeError: LocalizedError {
             return "Failed to authorize Screen Time: \(message)"
         case .blockingFailed(let message):
             return "Failed to block apps: \(message)"
+        case .monitoringFailed(let message):
+            return "Failed to start device activity monitoring: \(message)"
         }
     }
 }
@@ -164,4 +257,3 @@ struct FocusShieldView: View {
         .padding()
     }
 }
-

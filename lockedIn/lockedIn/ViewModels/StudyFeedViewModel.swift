@@ -15,10 +15,25 @@ enum StudyFeedSortOption: String, CaseIterable {
     }
 }
 
+enum StudyFeedPostFilter: String, CaseIterable {
+    case all
+    case stacks
+    case suggestions
+
+    var displayName: String {
+        switch self {
+        case .all: return "All"
+        case .stacks: return "Stacks"
+        case .suggestions: return "Suggestions"
+        }
+    }
+}
+
 @MainActor
 class StudyFeedViewModel: ObservableObject {
     @Published var posts: [StudyPost] = []
     @Published var sortOption: StudyFeedSortOption = .hot
+    @Published var postFilter: StudyFeedPostFilter = .all
 
     @Published var userVotes: [String: VoteType] = [:]
     @Published var favoritePostIds = Set<String>()
@@ -33,6 +48,7 @@ class StudyFeedViewModel: ObservableObject {
 
     private let firebaseService = FirebaseService.shared
     private let authService = AuthService.shared
+    private let analyticsService = AnalyticsService.shared
 
     private var allPosts: [StudyPost] = []
     private var postChunks: [[StudyPost]] = []
@@ -71,6 +87,13 @@ class StudyFeedViewModel: ObservableObject {
         await loadInteractionState(for: posts)
     }
 
+    func setPostFilter(_ filter: StudyFeedPostFilter) async {
+        guard postFilter != filter else { return }
+        postFilter = filter
+        rebuildFeedPages()
+        await loadInteractionState(for: posts)
+    }
+
     func loadMoreIfNeeded(currentPost: StudyPost) async {
         guard hasMorePages, !isLoadingMore, let postId = currentPost.id else { return }
         guard let index = posts.firstIndex(where: { $0.id == postId }) else { return }
@@ -98,7 +121,8 @@ class StudyFeedViewModel: ObservableObject {
     }
 
     private func rebuildFeedPages() {
-        let sortedPosts = sorted(allPosts, by: sortOption)
+        let filteredPosts = filtered(allPosts, by: postFilter)
+        let sortedPosts = sorted(filteredPosts, by: sortOption)
         postChunks = sortedPosts.chunked(into: pageSize)
 
         posts = []
@@ -131,6 +155,17 @@ class StudyFeedViewModel: ObservableObject {
                 }
                 return lhs.score > rhs.score
             }
+        }
+    }
+
+    private func filtered(_ posts: [StudyPost], by filter: StudyFeedPostFilter) -> [StudyPost] {
+        switch filter {
+        case .all:
+            return posts
+        case .stacks:
+            return posts.filter { $0.type == .stack }
+        case .suggestions:
+            return posts.filter { $0.type == .tip }
         }
     }
 
@@ -183,6 +218,7 @@ class StudyFeedViewModel: ObservableObject {
             try await firebaseService.setVote(postId: postId, userId: userId, type: newVote)
             userVotes[postId] = newVote
             applyVoteChangeLocally(postId: postId, from: currentVote, to: newVote)
+            analyticsService.logVote(postId: postId, voteType: newVote.rawValue)
         } catch {
             handleError(error)
         }
@@ -232,6 +268,8 @@ class StudyFeedViewModel: ObservableObject {
                 post.favoriteCount = max(0, post.favoriteCount + delta)
                 post.updatedAt = Date()
             }
+
+            analyticsService.logFavoriteToggled(postId: postId, isFavorited: newState)
         } catch {
             handleError(error)
         }
@@ -243,6 +281,7 @@ class StudyFeedViewModel: ObservableObject {
         type: StudyPostType,
         title: String,
         content: String,
+        stackItems: [StudyStackItem]? = nil,
         tools: [String],
         tags: [String]
     ) async {
@@ -263,12 +302,19 @@ class StudyFeedViewModel: ObservableObject {
                 type: type,
                 title: title.trimmed,
                 content: content.trimmed,
+                stackItems: stackItems,
                 tools: tools,
                 tags: tags.map(\.trimmed).filter(\.isNotEmpty)
             )
 
             _ = try await firebaseService.createStudyPost(newPost)
             await refreshFeed()
+
+            analyticsService.logPostCreated(
+                type: type.rawValue,
+                toolCount: stackItems?.count ?? tools.count,
+                tagCount: tags.count
+            )
         } catch {
             handleError(error)
         }

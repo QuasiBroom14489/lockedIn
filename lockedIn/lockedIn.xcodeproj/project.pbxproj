@@ -12,11 +12,23 @@
 		EDECC4DE2F458263001FE739 /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = EDECC4DD2F458263001FE739 /* FirebaseFirestore */; };
 		EDECC4E02F458274001FE739 /* FirebaseCore in Frameworks */ = {isa = PBXBuildFile; productRef = EDECC4DF2F458274001FE739 /* FirebaseCore */; };
 		EDECC4E22F45834A001FE739 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = EDECC4E12F45834A001FE739 /* GoogleService-Info.plist */; };
+		EDECC5092F46D278001FE739 /* FirebaseAnalytics in Frameworks */ = {isa = PBXBuildFile; productRef = EDECC5082F46D278001FE739 /* FirebaseAnalytics */; };
 /* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		EDECC51C2F46D4CD001FE739 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = EDECC4362F45705B001FE739 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = EDECC43D2F45705B001FE739;
+			remoteInfo = lockedIn;
+		};
+/* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
 		EDECC43E2F45705B001FE739 /* lockedIn.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = lockedIn.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		EDECC4E12F45834A001FE739 /* GoogleService-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
+		EDECC5182F46D4CD001FE739 /* lockedInTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = lockedInTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -38,6 +50,11 @@
 			path = lockedIn;
 			sourceTree = "<group>";
 		};
+		EDECC5192F46D4CD001FE739 /* lockedInTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = lockedInTests;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -48,7 +65,15 @@
 				EDECC4DA2F458253001FE739 /* FirebaseStorage in Frameworks */,
 				EDECC4DC2F45825A001FE739 /* FirebaseAuth in Frameworks */,
 				EDECC4E02F458274001FE739 /* FirebaseCore in Frameworks */,
+				EDECC5092F46D278001FE739 /* FirebaseAnalytics in Frameworks */,
 				EDECC4DE2F458263001FE739 /* FirebaseFirestore in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		EDECC5152F46D4CD001FE739 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -60,6 +85,7 @@
 			children = (
 				EDECC4E12F45834A001FE739 /* GoogleService-Info.plist */,
 				EDECC4402F45705B001FE739 /* lockedIn */,
+				EDECC5192F46D4CD001FE739 /* lockedInTests */,
 				EDECC4D82F458253001FE739 /* Frameworks */,
 				EDECC43F2F45705B001FE739 /* Products */,
 			);
@@ -69,6 +95,7 @@
 			isa = PBXGroup;
 			children = (
 				EDECC43E2F45705B001FE739 /* lockedIn.app */,
+				EDECC5182F46D4CD001FE739 /* lockedInTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -104,10 +131,34 @@
 				EDECC4DB2F45825A001FE739 /* FirebaseAuth */,
 				EDECC4DD2F458263001FE739 /* FirebaseFirestore */,
 				EDECC4DF2F458274001FE739 /* FirebaseCore */,
+				EDECC5082F46D278001FE739 /* FirebaseAnalytics */,
 			);
 			productName = lockedIn;
 			productReference = EDECC43E2F45705B001FE739 /* lockedIn.app */;
 			productType = "com.apple.product-type.application";
+		};
+		EDECC5172F46D4CD001FE739 /* lockedInTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = EDECC51E2F46D4CD001FE739 /* Build configuration list for PBXNativeTarget "lockedInTests" */;
+			buildPhases = (
+				EDECC5142F46D4CD001FE739 /* Sources */,
+				EDECC5152F46D4CD001FE739 /* Frameworks */,
+				EDECC5162F46D4CD001FE739 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				EDECC51D2F46D4CD001FE739 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				EDECC5192F46D4CD001FE739 /* lockedInTests */,
+			);
+			name = lockedInTests;
+			packageProductDependencies = (
+			);
+			productName = lockedInTests;
+			productReference = EDECC5182F46D4CD001FE739 /* lockedInTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
 		};
 /* End PBXNativeTarget section */
 
@@ -121,6 +172,10 @@
 				TargetAttributes = {
 					EDECC43D2F45705B001FE739 = {
 						CreatedOnToolsVersion = 26.2;
+					};
+					EDECC5172F46D4CD001FE739 = {
+						CreatedOnToolsVersion = 26.2;
+						TestTargetID = EDECC43D2F45705B001FE739;
 					};
 				};
 			};
@@ -142,6 +197,7 @@
 			projectRoot = "";
 			targets = (
 				EDECC43D2F45705B001FE739 /* lockedIn */,
+				EDECC5172F46D4CD001FE739 /* lockedInTests */,
 			);
 		};
 /* End PBXProject section */
@@ -155,6 +211,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		EDECC5162F46D4CD001FE739 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
@@ -165,7 +228,22 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		EDECC5142F46D4CD001FE739 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		EDECC51D2F46D4CD001FE739 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = EDECC43D2F45705B001FE739 /* lockedIn */;
+			targetProxy = EDECC51C2F46D4CD001FE739 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		EDECC44D2F45705E001FE739 /* Debug */ = {
@@ -370,6 +448,53 @@
 			};
 			name = Release;
 		};
+		EDECC51F2F46D4CD001FE739 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 9KL4YUCX2A;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.zanejohnson.lockedInTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/lockedIn.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/lockedIn";
+			};
+			name = Debug;
+		};
+		EDECC5202F46D4CD001FE739 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 9KL4YUCX2A;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.zanejohnson.lockedInTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/lockedIn.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/lockedIn";
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -387,6 +512,15 @@
 			buildConfigurations = (
 				EDECC44D2F45705E001FE739 /* Debug */,
 				EDECC44E2F45705E001FE739 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		EDECC51E2F46D4CD001FE739 /* Build configuration list for PBXNativeTarget "lockedInTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				EDECC51F2F46D4CD001FE739 /* Debug */,
+				EDECC5202F46D4CD001FE739 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
@@ -424,6 +558,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = EDECC4512F4570C7001FE739 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
 			productName = FirebaseCore;
+		};
+		EDECC5082F46D278001FE739 /* FirebaseAnalytics */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = EDECC4512F4570C7001FE739 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseAnalytics;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

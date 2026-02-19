@@ -61,35 +61,36 @@ struct StudyFeedView: View {
         ScrollView {
             VStack(spacing: 12) {
                 sortPicker
+                postTypeFilterChips
 
-                LazyVStack(spacing: 12) {
-                    ForEach(viewModel.posts) { post in
-                        StudyPostRow(
-                            post: post,
-                            currentVote: viewModel.userVotes[post.id ?? ""] ?? .none,
-                            isFavorited: viewModel.favoritePostIds.contains(post.id ?? ""),
-                            onAuthorTap: {
-                                selectedAuthorId = post.authorId
-                            },
-                            onUpvote: {
-                                Task { await viewModel.toggleUpvote(post: post) }
-                            },
-                            onDownvote: {
-                                Task { await viewModel.toggleDownvote(post: post) }
-                            },
-                            onFavorite: {
-                                Task { await viewModel.toggleFavorite(post: post) }
-                            },
-                            onShare: {
-                                shareText = shareText(for: post)
-                                showingShareSheet = true
-                            }
-                        )
-                        .onAppear {
-                            Task { await viewModel.loadMoreIfNeeded(currentPost: post) }
-                        }
+                PostsListView(
+                    posts: viewModel.posts,
+                    voteForPost: { post in
+                        viewModel.userVotes[post.id ?? ""] ?? .none
+                    },
+                    isFavoritedPost: { post in
+                        viewModel.favoritePostIds.contains(post.id ?? "")
+                    },
+                    onAuthorTap: { post in
+                        selectedAuthorId = post.authorId
+                    },
+                    onUpvote: { post in
+                        Task { await viewModel.toggleUpvote(post: post) }
+                    },
+                    onDownvote: { post in
+                        Task { await viewModel.toggleDownvote(post: post) }
+                    },
+                    onFavorite: { post in
+                        Task { await viewModel.toggleFavorite(post: post) }
+                    },
+                    onShare: { post in
+                        shareText = shareText(for: post)
+                        showingShareSheet = true
+                    },
+                    onPostAppear: { post in
+                        Task { await viewModel.loadMoreIfNeeded(currentPost: post) }
                     }
-                }
+                )
 
                 if viewModel.isLoadingMore {
                     ProgressView()
@@ -115,6 +116,30 @@ struct StudyFeedView: View {
         .onChange(of: viewModel.sortOption) { _, newValue in
             Task {
                 await viewModel.setSortOption(newValue)
+            }
+        }
+    }
+
+    private var postTypeFilterChips: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(StudyFeedPostFilter.allCases, id: \.self) { filter in
+                    let isSelected = viewModel.postFilter == filter
+                    Button {
+                        Task { await viewModel.setPostFilter(filter) }
+                    } label: {
+                        Text(filter.displayName)
+                            .font(.caption)
+                            .foregroundColor(isSelected ? AppColors.background : AppColors.textSecondary)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 6)
+                            .background(
+                                Capsule()
+                                    .fill(isSelected ? AppColors.gold : AppColors.surface)
+                            )
+                    }
+                    .buttonStyle(.plain)
+                }
             }
         }
     }

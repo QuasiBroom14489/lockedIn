@@ -1,0 +1,118 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper: Check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Helper: Check if user owns this document
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // Helper: Check if only specific fields are being updated
+    function onlyUpdatingFields(allowed) {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(allowed);
+    }
+
+    // Users collection
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow create: if isOwner(userId);
+      allow update: if isOwner(userId);
+      allow delete: if false; // Users cannot delete their accounts directly
+
+      // User's sessions subcollection
+      match /sessions/{sessionId} {
+        allow read: if isAuthenticated();
+        allow write: if isOwner(userId);
+      }
+
+      // User's following subcollection
+      match /following/{targetUserId} {
+        allow read: if isAuthenticated();
+        allow write: if isOwner(userId);
+      }
+
+      // User's followers subcollection
+      match /followers/{followerId} {
+        allow read: if isAuthenticated();
+        // Followers are written by the follower, not the profile owner
+        allow write: if isAuthenticated() && request.auth.uid == followerId;
+      }
+
+      // User's favorites subcollection (if using subcollection approach)
+      match /favorites/{favoriteId} {
+        allow read: if isAuthenticated();
+        allow write: if isOwner(userId);
+      }
+    }
+
+    // Study Posts collection
+    match /studyPosts/{postId} {
+      allow read: if isAuthenticated();
+
+      // Only author can create posts
+      allow create: if isAuthenticated()
+        && request.resource.data.authorId == request.auth.uid;
+
+      // Author can update any field; others can only update counter fields
+      allow update: if isAuthenticated() && (
+        // Author can update anything
+        resource.data.authorId == request.auth.uid ||
+        // Non-authors can only update vote/favorite counters and timestamps
+        onlyUpdatingFields(['upvoteCount', 'downvoteCount', 'favoriteCount', 'hotScore', 'updatedAt'])
+      );
+
+      // Only author can delete
+      allow delete: if isAuthenticated()
+        && resource.data.authorId == request.auth.uid;
+    }
+
+    // Votes collection
+    match /votes/{voteId} {
+      allow read: if isAuthenticated();
+
+      // User can only create/update/delete their own votes
+      allow create: if isAuthenticated()
+        && request.resource.data.userId == request.auth.uid;
+
+      allow update: if isAuthenticated()
+        && resource.data.userId == request.auth.uid
+        && request.resource.data.userId == request.auth.uid;
+
+      allow delete: if isAuthenticated()
+        && resource.data.userId == request.auth.uid;
+    }
+
+    // Favorites collection
+    match /favorites/{favoriteId} {
+      allow read: if isAuthenticated();
+
+      // User can only create/update/delete their own favorites
+      allow create: if isAuthenticated()
+        && request.resource.data.userId == request.auth.uid;
+
+      allow update: if isAuthenticated()
+        && resource.data.userId == request.auth.uid
+        && request.resource.data.userId == request.auth.uid;
+
+      allow delete: if isAuthenticated()
+        && resource.data.userId == request.auth.uid;
+    }
+
+    // Dorms collection (read-only for users, admin writes)
+    match /dorms/{dormId} {
+      allow read: if isAuthenticated();
+      allow write: if false; // Admin-only via Cloud Functions
+    }
+
+    // Leaderboard collection (if using a separate collection)
+    match /leaderboard/{entryId} {
+      allow read: if isAuthenticated();
+      allow write: if false; // Computed server-side or via Cloud Functions
+    }
+  }
+}

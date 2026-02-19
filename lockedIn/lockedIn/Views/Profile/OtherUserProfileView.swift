@@ -29,6 +29,11 @@ struct OtherUserProfileView: View {
                     // Stats Card
                     StatsCard(user: user)
 
+                    // Screen Time (only if user has visibility enabled)
+                    if user.screenTimeVisibilityEnabled {
+                        ScreenTimeCard(user: user, isCurrentUser: false)
+                    }
+
                     // Tier Progress
                     TierProgressCard(points: user.points, tier: user.tier)
 
@@ -66,7 +71,7 @@ struct OtherUserProfileView: View {
             }
             .padding()
         }
-        .background(Color(.systemGroupedBackground))
+        .background(AppColors.background.ignoresSafeArea())
         .navigationTitle(viewModel.user?.displayName ?? "Profile")
         .navigationBarTitleDisplayMode(.inline)
         .task {

@@ -21,6 +21,24 @@ enum Constants {
         static let minimumDurationSeconds = 60
         static let verificationIntervalSeconds = 30
         static let defaultDurationMinutes = 25
+        static let tipRotationInterval: TimeInterval = 30
+        static let focusTips: [String] = [
+            "One focused minute now saves ten later.",
+            "Small progress compounds. Keep going.",
+            "Protect this block. Your future self will thank you.",
+            "Deep work first, dopamine later.",
+            "Finish the next chunk, not the whole mountain.",
+            "Discipline beats motivation when it counts.",
+            "You are building study momentum right now.",
+            "Stay in the app, stay in flow.",
+            "Your consistency is your competitive edge.",
+            "Focus is a skill. You are training it.",
+            "One session at a time, one win at a time.",
+            "Less switching, more finishing.",
+            "Locked in now means less stress later.",
+            "Keep attention on what moves grades forward.",
+            "You do not need perfect, just focused."
+        ]
     }
 
     enum UI {

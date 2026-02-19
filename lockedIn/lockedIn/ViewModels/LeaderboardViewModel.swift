@@ -17,6 +17,7 @@ class LeaderboardViewModel: ObservableObject {
 
     private let firebaseService = FirebaseService.shared
     private let authService = AuthService.shared
+    private let analyticsService = AnalyticsService.shared
     private var listener: ListenerRegistration?
     private var cancellables = Set<AnyCancellable>()
 
@@ -29,22 +30,24 @@ class LeaderboardViewModel: ObservableObject {
     }
 
     private func setupBindings() {
-        // Reload when period changes
+        // Reload and restart listener when period changes
         $selectedPeriod
             .dropFirst()
             .sink { [weak self] _ in
                 Task {
                     await self?.loadLeaderboard()
+                    self?.startListening()
                 }
             }
             .store(in: &cancellables)
 
-        // Reload when friends filter changes
+        // Reload and restart listener when friends filter changes
         $showFriendsOnly
             .dropFirst()
             .sink { [weak self] _ in
                 Task {
                     await self?.loadLeaderboard()
+                    self?.startListening()
                 }
             }
             .store(in: &cancellables)
@@ -57,12 +60,13 @@ class LeaderboardViewModel: ObservableObject {
 
         do {
             if showFriendsOnly, let userId = authService.currentUserId {
-                entries = try await firebaseService.getFriendsLeaderboard(userId: userId)
+                entries = try await firebaseService.getFriendsLeaderboard(userId: userId, period: selectedPeriod)
             } else {
-                entries = try await firebaseService.getLeaderboard(limit: 100)
+                entries = try await firebaseService.getLeaderboard(limit: 100, period: selectedPeriod)
             }
 
             updateCurrentUserRank()
+            analyticsService.logLeaderboardViewed(period: selectedPeriod.rawValue, showFriendsOnly: showFriendsOnly)
         } catch {
             handleError(error)
         }
@@ -75,11 +79,20 @@ class LeaderboardViewModel: ObservableObject {
     func startListening() {
         listener?.remove()
 
+        // Real-time listener only works for allTime since it queries totalFocusedSeconds
+        // For weekly/monthly, we rely on manual refresh
+        guard selectedPeriod == .allTime && !showFriendsOnly else {
+            listener = nil
+            return
+        }
+
         listener = firebaseService.addLeaderboardListener(limit: 100) { [weak self] entries in
             Task { @MainActor in
-                if !(self?.showFriendsOnly ?? false) {
-                    self?.entries = entries
-                    self?.updateCurrentUserRank()
+                guard let self = self else { return }
+                // Only update if still on allTime and not friends-only
+                if self.selectedPeriod == .allTime && !self.showFriendsOnly {
+                    self.entries = entries
+                    self.updateCurrentUserRank()
                 }
             }
         }

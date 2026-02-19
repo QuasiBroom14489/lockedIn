@@ -3,6 +3,12 @@ import Combine
 import SwiftUI
 import PhotosUI
 
+enum ProfileTab: String, CaseIterable {
+    case overview = "Overview"
+    case posts = "Posts"
+    case saved = "Saved"
+}
+
 @MainActor
 class ProfileViewModel: ObservableObject {
     @Published var user: User?
@@ -23,6 +29,9 @@ class ProfileViewModel: ObservableObject {
     @Published var isFollowing = false
 
     @Published var recentSessions: [FocusSession] = []
+    @Published var userPosts: [StudyPost] = []
+    @Published var savedPosts: [StudyPost] = []
+    @Published var selectedTab: ProfileTab = .overview
 
     @Published var isLoading = false
     @Published var isSaving = false
@@ -31,7 +40,21 @@ class ProfileViewModel: ObservableObject {
 
     private let firebaseService = FirebaseService.shared
     private let authService = AuthService.shared
+    private let analyticsService = AnalyticsService.shared
     private var cancellables = Set<AnyCancellable>()
+
+    init() {
+        setupBindings()
+    }
+
+    private func setupBindings() {
+        $selectedTab
+            .dropFirst()
+            .sink { [weak self] tab in
+                self?.analyticsService.logProfileTabChanged(tab: tab.rawValue)
+            }
+            .store(in: &cancellables)
+    }
 
     var yearOptions: [String] {
         ["Freshman", "Sophomore", "Junior", "Senior", "Graduate"]
@@ -72,6 +95,10 @@ class ProfileViewModel: ObservableObject {
 
             // Load recent sessions
             recentSessions = try await firebaseService.getSessions(userId: id, limit: 5)
+
+            // Load profile content tabs
+            userPosts = try await firebaseService.getPostsByAuthor(userId: id, limit: 50)
+            savedPosts = try await firebaseService.getFavoritedPosts(userId: id, limit: 50)
 
         } catch {
             handleError(error)
@@ -172,11 +199,31 @@ class ProfileViewModel: ObservableObject {
                 try await firebaseService.unfollowUser(currentUserId: currentUserId, targetUserId: targetUserId)
                 isFollowing = false
                 followersCount -= 1
+                analyticsService.logUserUnfollowed(targetUserId: targetUserId)
             } else {
                 try await firebaseService.followUser(currentUserId: currentUserId, targetUserId: targetUserId)
                 isFollowing = true
                 followersCount += 1
+                analyticsService.logUserFollowed(targetUserId: targetUserId)
             }
+        } catch {
+            handleError(error)
+        }
+    }
+
+    // MARK: - Posts/Saved
+
+    func loadUserPosts(userId: String) async {
+        do {
+            userPosts = try await firebaseService.getPostsByAuthor(userId: userId, limit: 50)
+        } catch {
+            handleError(error)
+        }
+    }
+
+    func loadSavedPosts(userId: String) async {
+        do {
+            savedPosts = try await firebaseService.getFavoritedPosts(userId: userId, limit: 50)
         } catch {
             handleError(error)
         }

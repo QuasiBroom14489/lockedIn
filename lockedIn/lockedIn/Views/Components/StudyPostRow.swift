@@ -30,12 +30,10 @@ struct StudyPostRow: View {
                 .foregroundColor(AppColors.textSecondary)
                 .lineLimit(5)
 
-            if !post.tools.isEmpty {
-                toolChips(post.tools)
-            }
-
-            if !post.tags.isEmpty {
-                tagChips(post.tags)
+            if post.type == .stack {
+                stackContent
+            } else {
+                suggestionContent
             }
 
             actionRow
@@ -103,13 +101,76 @@ struct StudyPostRow: View {
         Text(post.type.displayName)
             .font(.caption2)
             .fontWeight(.semibold)
-            .foregroundColor(AppColors.gold)
+            .foregroundColor(post.type == .stack ? AppColors.gold : AppColors.success)
             .padding(.horizontal, 8)
             .padding(.vertical, 3)
             .background(
                 Capsule()
-                    .fill(AppColors.gold.opacity(0.18))
+                    .fill((post.type == .stack ? AppColors.gold : AppColors.success).opacity(0.18))
             )
+    }
+
+    @ViewBuilder
+    private var stackContent: some View {
+        if let stackItems = post.stackItems, !stackItems.isEmpty {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Study Stack")
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+                    .foregroundColor(AppColors.gold)
+
+                ForEach(stackItems) { item in
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack {
+                            Text(item.toolName)
+                                .font(.subheadline)
+                                .fontWeight(.semibold)
+                                .foregroundColor(AppColors.textPrimary)
+
+                            Spacer()
+
+                            if let linkURL = item.linkURL,
+                               let url = URL(string: linkURL),
+                               !linkURL.isEmpty {
+                                Link(destination: url) {
+                                    Label("Open", systemImage: "arrow.up.right")
+                                        .font(.caption2)
+                                        .foregroundColor(AppColors.gold)
+                                }
+                            }
+                        }
+
+                        if let note = item.usageNote, note.isNotEmpty {
+                            Text(note)
+                                .font(AppFonts.caption())
+                                .foregroundColor(AppColors.textSecondary)
+                        }
+                    }
+                    .padding(10)
+                    .background(
+                        RoundedRectangle(cornerRadius: 10)
+                            .fill(AppColors.surfaceElevated)
+                    )
+                }
+            }
+        } else if !post.tools.isEmpty {
+            toolChips(post.tools)
+        }
+
+        if !post.tags.isEmpty {
+            tagChips(post.tags)
+        }
+    }
+
+    @ViewBuilder
+    private var suggestionContent: some View {
+        if !post.tags.isEmpty {
+            tagChips(post.tags)
+        }
+
+        if !post.tools.isEmpty {
+            toolChips(post.tools)
+        }
     }
 
     private func toolChips(_ tools: [String]) -> some View {

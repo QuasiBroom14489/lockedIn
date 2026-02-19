@@ -21,6 +21,7 @@ struct StudyPost: Identifiable, Codable {
     var type: StudyPostType
     var title: String
     var content: String
+    var stackItems: [StudyStackItem]?
     var tools: [String]
     var tags: [String]
     var upvoteCount: Int
@@ -32,7 +33,7 @@ struct StudyPost: Identifiable, Codable {
 
     enum CodingKeys: String, CodingKey {
         case id, authorId, authorName, authorPhotoURL
-        case type, title, content, tools, tags
+        case type, title, content, stackItems, tools, tags
         case upvoteCount, downvoteCount, favoriteCount, hotScore
         case createdAt, updatedAt
     }
@@ -47,6 +48,7 @@ struct StudyPost: Identifiable, Codable {
         type = try container.decodeIfPresent(StudyPostType.self, forKey: .type) ?? .tip
         title = try container.decodeIfPresent(String.self, forKey: .title) ?? ""
         content = try container.decodeIfPresent(String.self, forKey: .content) ?? ""
+        stackItems = try container.decodeIfPresent([StudyStackItem].self, forKey: .stackItems)
         tools = try container.decodeIfPresent([String].self, forKey: .tools) ?? []
         tags = try container.decodeIfPresent([String].self, forKey: .tags) ?? []
         upvoteCount = try container.decodeIfPresent(Int.self, forKey: .upvoteCount) ?? 0
@@ -65,6 +67,7 @@ struct StudyPost: Identifiable, Codable {
         type: StudyPostType,
         title: String,
         content: String,
+        stackItems: [StudyStackItem]? = nil,
         tools: [String] = [],
         tags: [String] = [],
         upvoteCount: Int = 0,
@@ -81,6 +84,7 @@ struct StudyPost: Identifiable, Codable {
         self.type = type
         self.title = title
         self.content = content
+        self.stackItems = stackItems
         self.tools = tools
         self.tags = tags
         self.upvoteCount = upvoteCount
@@ -111,6 +115,11 @@ extension StudyPost {
             type: .stack,
             title: "My 90-minute exam prep stack",
             content: "25m deep work, 5m break, then active recall on 30 flashcards.",
+            stackItems: [
+                StudyStackItem(toolName: "Anki", linkURL: "https://apps.ankiweb.net", usageNote: "Run a 30-card active recall sprint."),
+                StudyStackItem(toolName: "Notion", usageNote: "Track weak concepts and exam targets."),
+                StudyStackItem(toolName: "Forest", usageNote: "Lock focus blocks and avoid app switching.")
+            ],
             tools: ["Anki", "Notion", "Forest"],
             tags: ["exam", "deep-work", "active-recall"],
             upvoteCount: 32,

@@ -1,5 +1,4 @@
 import SwiftUI
-import AVFoundation
 
 struct ActiveSessionView: View {
     @ObservedObject var viewModel: FocusViewModel
@@ -12,30 +11,26 @@ struct ActiveSessionView: View {
                 Color.black.ignoresSafeArea()
 
                 VStack(spacing: 0) {
-                    // Camera Preview (top half)
-                    if let previewLayer = viewModel.cameraService.previewLayer {
-                        CameraPreviewView(previewLayer: previewLayer)
-                            .frame(maxWidth: .infinity)
-                            .frame(height: geometry.size.height * 0.4)
-                            .clipShape(RoundedRectangle(cornerRadius: 20))
-                            .padding()
-                    } else {
-                        Rectangle()
-                            .fill(AppColors.surface)
-                            .frame(height: geometry.size.height * 0.4)
-                            .clipShape(RoundedRectangle(cornerRadius: 20))
-                            .overlay {
-                                VStack(spacing: 12) {
-                                    Image(systemName: "camera.fill")
-                                        .font(.system(size: 40))
-                                        .foregroundColor(AppColors.textTertiary)
-                                    Text("Camera Loading...")
-                                        .font(AppFonts.body())
-                                        .foregroundColor(AppColors.textTertiary)
-                                }
+                    Rectangle()
+                        .fill(AppColors.surface)
+                        .frame(height: geometry.size.height * 0.4)
+                        .clipShape(RoundedRectangle(cornerRadius: 20))
+                        .overlay {
+                            VStack(spacing: 12) {
+                                Image(systemName: "brain.head.profile")
+                                    .font(.system(size: 40))
+                                    .foregroundColor(AppColors.gold)
+                                Text("Stay locked in")
+                                    .font(AppFonts.headline())
+                                    .foregroundColor(AppColors.textPrimary)
+                                Text("Leaving the app ends your focus session.")
+                                    .font(AppFonts.body())
+                                    .foregroundColor(AppColors.textSecondary)
                             }
-                            .padding()
-                    }
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, 24)
+                        }
+                        .padding()
 
                 Spacer()
 
@@ -63,9 +58,14 @@ struct ActiveSessionView: View {
                     .frame(height: 8)
                     .padding(.horizontal, 40)
 
-                    Text("Stay focused! You're doing great.")
+                    Text(viewModel.currentTip)
                         .font(AppFonts.body())
                         .foregroundColor(AppColors.textSecondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 24)
+                        .id(viewModel.currentTip)
+                        .transition(.opacity)
+                        .animation(.easeInOut(duration: 0.35), value: viewModel.currentTip)
                 }
                 .padding(.vertical, 32)
 
@@ -73,12 +73,6 @@ struct ActiveSessionView: View {
 
                 // Status Indicators
                 HStack(spacing: 24) {
-                    StatusIndicator(
-                        icon: "camera.fill",
-                        label: "Camera",
-                        isActive: viewModel.cameraService.isCameraActive
-                    )
-
                     StatusIndicator(
                         icon: "lock.fill",
                         label: "Locked In",

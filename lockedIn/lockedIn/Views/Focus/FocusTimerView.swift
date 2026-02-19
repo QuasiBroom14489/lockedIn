@@ -52,17 +52,6 @@ struct FocusTimerView: View {
                             Text("Stay Focused")
                                 .font(AppFonts.body())
                                 .foregroundColor(AppColors.textSecondary)
-
-                            if viewModel.cameraService.isCameraActive {
-                                HStack(spacing: 4) {
-                                    Circle()
-                                        .fill(AppColors.success)
-                                        .frame(width: 8, height: 8)
-                                    Text("Camera Active")
-                                        .font(AppFonts.caption())
-                                        .foregroundColor(AppColors.textTertiary)
-                                }
-                            }
                         }
                     }
                     .frame(width: 200, height: 200)

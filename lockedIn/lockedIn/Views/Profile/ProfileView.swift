@@ -5,56 +5,52 @@ struct ProfileView: View {
     @EnvironmentObject var authViewModel: AuthViewModel
     @State private var showEditProfile = false
     @State private var showSettings = false
+    @State private var selectedAuthorId: String?
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(spacing: 24) {
-                    if viewModel.isLoading {
-                        ProgressView()
-                            .frame(maxWidth: .infinity, minHeight: 300)
-                    } else if let user = viewModel.user {
-                        // Profile Header
-                        ProfileHeaderView(
-                            user: user,
-                            followersCount: viewModel.followersCount,
-                            followingCount: viewModel.followingCount,
-                            isCurrentUser: true,
-                            isFollowing: false,
-                            onFollowTap: {}
-                        )
+            Group {
+                if viewModel.isLoading {
+                    ProgressView()
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .background(AppColors.background)
+                } else if let user = viewModel.user {
+                    ScrollView {
+                        VStack(spacing: 20) {
+                            // Profile Header
+                            ProfileHeaderView(
+                                user: user,
+                                followersCount: viewModel.followersCount,
+                                followingCount: viewModel.followingCount,
+                                isCurrentUser: true,
+                                isFollowing: false,
+                                onFollowTap: {}
+                            )
 
-                        // Stats Card
-                        StatsCard(user: user)
+                            Picker("Profile Section", selection: $viewModel.selectedTab) {
+                                ForEach(ProfileTab.allCases, id: \.self) { tab in
+                                    Text(tab.rawValue).tag(tab)
+                                }
+                            }
+                            .pickerStyle(.segmented)
 
-                        // Tier Progress
-                        TierProgressCard(points: user.points, tier: user.tier)
-
-                        // Spotify Playlist
-                        if let spotifyURL = user.spotifyPlaylistURL, !spotifyURL.isEmpty {
-                            SpotifyCard(urlString: spotifyURL)
+                            contentForSelectedTab(user: user)
                         }
-
-                        // Study Tools
-                        if !user.studyTools.isEmpty {
-                            StudyToolsCard(tools: user.studyTools)
-                        }
-
-                        // Tips
-                        if let tips = user.tips, !tips.isEmpty {
-                            TipsCard(tips: tips)
-                        }
-
-                        // Recent Sessions
-                        if !viewModel.recentSessions.isEmpty {
-                            RecentSessionsCard(sessions: viewModel.recentSessions)
-                        }
+                        .padding()
                     }
+                } else {
+                    ContentUnavailableView(
+                        "Profile unavailable",
+                        systemImage: "person.crop.circle.badge.exclamationmark"
+                    )
+                    .background(AppColors.background)
                 }
-                .padding()
             }
             .background(AppColors.background)
             .navigationTitle("Profile")
+            .navigationDestination(item: $selectedAuthorId) { userId in
+                OtherUserProfileView(userId: userId)
+            }
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
                     Menu {
@@ -82,18 +78,94 @@ struct ProfileView: View {
                     }
                 }
             }
-            .sheet(isPresented: $showEditProfile) {
-                EditProfileView(viewModel: viewModel)
+        }
+        .sheet(isPresented: $showEditProfile) {
+            EditProfileView(viewModel: viewModel)
+        }
+        .sheet(isPresented: $showSettings) {
+            SettingsView()
+        }
+        .task {
+            await viewModel.loadProfile(userId: nil)
+        }
+        .refreshable {
+            await viewModel.loadProfile(userId: nil)
+        }
+    }
+
+    @ViewBuilder
+    private func contentForSelectedTab(user: User) -> some View {
+        switch viewModel.selectedTab {
+        case .overview:
+            overviewContent(user: user)
+        case .posts:
+            postsContent
+        case .saved:
+            savedContent
+        }
+    }
+
+    @ViewBuilder
+    private func overviewContent(user: User) -> some View {
+        VStack(spacing: 24) {
+            StatsCard(user: user)
+
+            if user.screenTimeVisibilityEnabled || viewModel.isCurrentUser {
+                ScreenTimeCard(user: user, isCurrentUser: viewModel.isCurrentUser)
             }
-            .sheet(isPresented: $showSettings) {
-                SettingsView()
+
+            TierProgressCard(points: user.points, tier: user.tier)
+
+            if let spotifyURL = user.spotifyPlaylistURL, !spotifyURL.isEmpty {
+                SpotifyCard(urlString: spotifyURL)
             }
-            .task {
-                await viewModel.loadProfile(userId: nil)
+
+            if !user.studyTools.isEmpty {
+                StudyToolsCard(tools: user.studyTools)
             }
-            .refreshable {
-                await viewModel.loadProfile(userId: nil)
+
+            if let tips = user.tips, !tips.isEmpty {
+                TipsCard(tips: tips)
             }
+
+            if !viewModel.recentSessions.isEmpty {
+                RecentSessionsCard(sessions: viewModel.recentSessions)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var postsContent: some View {
+        if viewModel.userPosts.isEmpty {
+            EmptyPostsState(
+                title: "No Posts Yet",
+                message: "Share your first stack or suggestion to build your profile."
+            )
+        } else {
+            PostsListView(
+                posts: viewModel.userPosts,
+                onAuthorTap: { post in
+                    selectedAuthorId = post.authorId
+                }
+            )
+        }
+    }
+
+    @ViewBuilder
+    private var savedContent: some View {
+        if viewModel.savedPosts.isEmpty {
+            EmptyPostsState(
+                title: "No Saved Posts",
+                message: "Save useful stacks and tips to revisit them here."
+            )
+        } else {
+            PostsListView(
+                posts: viewModel.savedPosts,
+                isFavoritedPost: { _ in true },
+                onAuthorTap: { post in
+                    selectedAuthorId = post.authorId
+                }
+            )
         }
     }
 }
@@ -228,6 +300,150 @@ struct StatItem: View {
                 .font(AppFonts.caption())
                 .foregroundColor(AppColors.textSecondary)
         }
+    }
+}
+
+// MARK: - Screen Time Card
+
+struct ScreenTimeCard: View {
+    let user: User
+    var isCurrentUser: Bool = true
+
+    private var productiveMinutes: Int {
+        max(user.dailyProductiveMinutes, 0)
+    }
+
+    private var nonProductiveMinutes: Int {
+        max(user.dailyNonProductiveMinutes, 0)
+    }
+
+    private var totalMinutes: Int {
+        productiveMinutes + nonProductiveMinutes
+    }
+
+    private var productiveRatio: Double {
+        guard totalMinutes > 0 else { return 0 }
+        return Double(productiveMinutes) / Double(totalMinutes)
+    }
+
+    private var nonProductiveRatio: Double {
+        guard totalMinutes > 0 else { return 0 }
+        return Double(nonProductiveMinutes) / Double(totalMinutes)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("Screen Time")
+                    .font(AppFonts.headline())
+                    .foregroundColor(AppColors.textPrimary)
+
+                Spacer()
+
+                if let updatedAt = user.screenTimeUpdatedAt {
+                    Text("Updated \(updatedAt.timeAgoString())")
+                        .font(AppFonts.caption())
+                        .foregroundColor(AppColors.textTertiary)
+                }
+            }
+
+            if totalMinutes == 0 {
+                Text("No screen time data available yet.")
+                    .font(AppFonts.body())
+                    .foregroundColor(AppColors.textSecondary)
+            } else {
+                VStack(spacing: 10) {
+                    GeometryReader { geometry in
+                        let productiveWidth = geometry.size.width * productiveRatio
+                        let nonProductiveWidth = geometry.size.width * nonProductiveRatio
+
+                        HStack(spacing: 0) {
+                            RoundedRectangle(cornerRadius: 8)
+                                .fill(AppColors.success)
+                                .frame(width: productiveWidth)
+
+                            RoundedRectangle(cornerRadius: 8)
+                                .fill(AppColors.warning)
+                                .frame(width: nonProductiveWidth)
+                        }
+                        .frame(height: 12)
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                    }
+                    .frame(height: 12)
+
+                    HStack(spacing: 12) {
+                        LegendItem(
+                            color: AppColors.success,
+                            title: "Productive",
+                            value: "\(productiveMinutes)m"
+                        )
+
+                        Spacer()
+
+                        LegendItem(
+                            color: AppColors.warning,
+                            title: "Non-Productive",
+                            value: "\(nonProductiveMinutes)m"
+                        )
+                    }
+                }
+            }
+
+            if isCurrentUser && !user.screenTimeVisibilityEnabled {
+                Text("Your screen time is hidden from other users.")
+                    .font(AppFonts.caption())
+                    .foregroundColor(AppColors.textTertiary)
+            }
+        }
+        .cardStyle()
+    }
+}
+
+private struct LegendItem: View {
+    let color: Color
+    let title: String
+    let value: String
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Circle()
+                .fill(color)
+                .frame(width: 8, height: 8)
+
+            VStack(alignment: .leading, spacing: 1) {
+                Text(title)
+                    .font(AppFonts.caption())
+                    .foregroundColor(AppColors.textSecondary)
+
+                Text(value)
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+                    .foregroundColor(AppColors.textPrimary)
+            }
+        }
+    }
+}
+
+private struct EmptyPostsState: View {
+    let title: String
+    let message: String
+
+    var body: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "tray")
+                .font(.system(size: 32))
+                .foregroundColor(AppColors.textTertiary)
+
+            Text(title)
+                .font(AppFonts.headline())
+                .foregroundColor(AppColors.textPrimary)
+
+            Text(message)
+                .font(AppFonts.body())
+                .foregroundColor(AppColors.textSecondary)
+                .multilineTextAlignment(.center)
+        }
+        .cardStyle()
     }
 }
 
@@ -429,6 +645,13 @@ struct SettingsView: View {
                         Spacer()
                         Text("1.0.0")
                             .foregroundColor(.secondary)
+                    }
+                }
+
+                Section {
+                    Button("Sign Out", role: .destructive) {
+                        authViewModel.signOut()
+                        dismiss()
                     }
                 }
 

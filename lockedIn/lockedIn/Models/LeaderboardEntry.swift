@@ -41,7 +41,7 @@ struct LeaderboardEntry: Identifiable, Codable {
     }
 
     init(from user: User, rank: Int) {
-        self.userId = user.id ?? ""
+        self.userId = user.id ?? UUID().uuidString
         self.displayName = user.displayName
         self.photoURL = user.photoURL
         self.totalSeconds = user.totalFocusedSeconds
@@ -82,6 +82,19 @@ enum LeaderboardPeriod: String, CaseIterable {
         case .weekly: return "This Week"
         case .monthly: return "This Month"
         case .allTime: return "All Time"
+        }
+    }
+
+    var cutoffDate: Date {
+        let calendar = Calendar.current
+        let now = Date()
+        switch self {
+        case .weekly:
+            return calendar.date(byAdding: .day, value: -7, to: now) ?? now
+        case .monthly:
+            return calendar.date(byAdding: .month, value: -1, to: now) ?? now
+        case .allTime:
+            return Date.distantPast
         }
     }
 }

@@ -13,6 +13,10 @@ struct User: Identifiable, Codable {
     var tips: String?
     var totalFocusedSeconds: Int
     var points: Int
+    var dailyProductiveMinutes: Int
+    var dailyNonProductiveMinutes: Int
+    var screenTimeUpdatedAt: Date?
+    var screenTimeVisibilityEnabled: Bool
     var selectedTitle: String?
     var selectedFrame: String?
     var unlockedCosmetics: [String]
@@ -22,7 +26,9 @@ struct User: Identifiable, Codable {
     enum CodingKeys: String, CodingKey {
         case id, email, displayName, photoURL, major, year
         case spotifyPlaylistURL, studyTools, tips, totalFocusedSeconds
-        case points, selectedTitle, selectedFrame, unlockedCosmetics
+        case points, dailyProductiveMinutes, dailyNonProductiveMinutes
+        case screenTimeUpdatedAt, screenTimeVisibilityEnabled
+        case selectedTitle, selectedFrame, unlockedCosmetics
         case createdAt, updatedAt
     }
 
@@ -41,6 +47,10 @@ struct User: Identifiable, Codable {
         tips = try container.decodeIfPresent(String.self, forKey: .tips)
         totalFocusedSeconds = try container.decodeIfPresent(Int.self, forKey: .totalFocusedSeconds) ?? 0
         points = try container.decodeIfPresent(Int.self, forKey: .points) ?? 0
+        dailyProductiveMinutes = try container.decodeIfPresent(Int.self, forKey: .dailyProductiveMinutes) ?? 0
+        dailyNonProductiveMinutes = try container.decodeIfPresent(Int.self, forKey: .dailyNonProductiveMinutes) ?? 0
+        screenTimeUpdatedAt = try container.decodeIfPresent(Date.self, forKey: .screenTimeUpdatedAt)
+        screenTimeVisibilityEnabled = try container.decodeIfPresent(Bool.self, forKey: .screenTimeVisibilityEnabled) ?? true
         selectedTitle = try container.decodeIfPresent(String.self, forKey: .selectedTitle)
         selectedFrame = try container.decodeIfPresent(String.self, forKey: .selectedFrame)
         unlockedCosmetics = try container.decodeIfPresent([String].self, forKey: .unlockedCosmetics) ?? []
@@ -79,6 +89,10 @@ struct User: Identifiable, Codable {
         tips: String? = nil,
         totalFocusedSeconds: Int = 0,
         points: Int = 0,
+        dailyProductiveMinutes: Int = 0,
+        dailyNonProductiveMinutes: Int = 0,
+        screenTimeUpdatedAt: Date? = nil,
+        screenTimeVisibilityEnabled: Bool = true,
         selectedTitle: String? = nil,
         selectedFrame: String? = nil,
         unlockedCosmetics: [String] = [],
@@ -96,6 +110,10 @@ struct User: Identifiable, Codable {
         self.tips = tips
         self.totalFocusedSeconds = totalFocusedSeconds
         self.points = points
+        self.dailyProductiveMinutes = dailyProductiveMinutes
+        self.dailyNonProductiveMinutes = dailyNonProductiveMinutes
+        self.screenTimeUpdatedAt = screenTimeUpdatedAt
+        self.screenTimeVisibilityEnabled = screenTimeVisibilityEnabled
         self.selectedTitle = selectedTitle
         self.selectedFrame = selectedFrame
         self.unlockedCosmetics = unlockedCosmetics
@@ -119,7 +137,11 @@ extension User {
             studyTools: ["Notion", "Anki", "Quizlet"],
             tips: "I find that studying in Hesburgh Library helps me focus better.",
             totalFocusedSeconds: 36000,
-            points: 8500
+            points: 8500,
+            dailyProductiveMinutes: 210,
+            dailyNonProductiveMinutes: 95,
+            screenTimeUpdatedAt: Date(),
+            screenTimeVisibilityEnabled: true
         )
     }
 }

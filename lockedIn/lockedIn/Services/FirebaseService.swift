@@ -54,6 +54,17 @@ class FirebaseService {
         return snapshot.documents.compactMap { try? $0.data(as: User.self) }
     }
 
+    func updateUserScreenTime(_ metrics: ScreenTimeMetrics, userId: String) async throws {
+        try await db.collection(Constants.Firebase.usersCollection)
+            .document(userId)
+            .setData([
+                "dailyProductiveMinutes": metrics.productiveMinutes,
+                "dailyNonProductiveMinutes": metrics.nonProductiveMinutes,
+                "screenTimeUpdatedAt": metrics.lastUpdated,
+                "updatedAt": Date()
+            ], merge: true)
+    }
+
     // MARK: - Session Operations
 
     func createSession(_ session: FocusSession, userId: String) async throws -> String {
@@ -113,6 +124,30 @@ class FirebaseService {
             .getDocuments()
 
         return snapshot.documents.compactMap { try? $0.data(as: StudyPost.self) }
+    }
+
+    func getPostsByAuthor(userId: String, limit: Int = 50) async throws -> [StudyPost] {
+        let snapshot = try await db.collection(Constants.Firebase.studyPostsCollection)
+            .whereField("authorId", isEqualTo: userId)
+            .order(by: "createdAt", descending: true)
+            .limit(to: limit)
+            .getDocuments()
+
+        return snapshot.documents.compactMap { try? $0.data(as: StudyPost.self) }
+    }
+
+    func getFavoritedPosts(userId: String, limit: Int = 50) async throws -> [StudyPost] {
+        let favorites = try await getFavorites(forUserId: userId, limit: limit)
+        var posts: [StudyPost] = []
+        posts.reserveCapacity(favorites.count)
+
+        for favorite in favorites {
+            if let post = try await getStudyPost(id: favorite.postId) {
+                posts.append(post)
+            }
+        }
+
+        return posts
     }
 
     func updateStudyPost(_ post: StudyPost) async throws {
@@ -385,19 +420,7 @@ class FirebaseService {
 
     // MARK: - Leaderboard Operations
 
-    func getLeaderboard(limit: Int = 100) async throws -> [LeaderboardEntry] {
-        let snapshot = try await db.collection(Constants.Firebase.usersCollection)
-            .order(by: "totalFocusedSeconds", descending: true)
-            .limit(to: limit)
-            .getDocuments()
-
-        let users = snapshot.documents.compactMap { try? $0.data(as: User.self) }
-        return users.enumerated().map { index, user in
-            LeaderboardEntry(from: user, rank: index + 1)
-        }
-    }
-
-    func getFriendsLeaderboard(userId: String) async throws -> [LeaderboardEntry] {
+    func getFriendsLeaderboard(userId: String, period: LeaderboardPeriod = .allTime) async throws -> [LeaderboardEntry] {
         let followingIds = try await getFollowing(userId: userId)
         guard !followingIds.isEmpty else { return [] }
 
@@ -409,10 +432,84 @@ class FirebaseService {
             .getDocuments()
 
         let users = snapshot.documents.compactMap { try? $0.data(as: User.self) }
-        let sorted = users.sorted { $0.totalFocusedSeconds > $1.totalFocusedSeconds }
-        return sorted.enumerated().map { index, user in
-            LeaderboardEntry(from: user, rank: index + 1)
+            .filter { $0.id != nil }
+
+        if period == .allTime {
+            let sorted = users.sorted { $0.totalFocusedSeconds > $1.totalFocusedSeconds }
+            return sorted.enumerated().map { index, user in
+                LeaderboardEntry(from: user, rank: index + 1)
+            }
         }
+
+        // For weekly/monthly, aggregate from sessions
+        var userTotals: [(user: User, seconds: Int)] = []
+        let cutoffDate = period.cutoffDate
+
+        for user in users {
+            guard let userId = user.id else { continue }
+            let periodSeconds = try await getSessionsTotal(userId: userId, since: cutoffDate)
+            userTotals.append((user, periodSeconds))
+        }
+
+        let sorted = userTotals.sorted { $0.seconds > $1.seconds }
+        return sorted.enumerated().map { index, item in
+            var entry = LeaderboardEntry(from: item.user, rank: index + 1)
+            entry.totalSeconds = item.seconds
+            return entry
+        }
+    }
+
+    func getLeaderboard(limit: Int = 100, period: LeaderboardPeriod = .allTime) async throws -> [LeaderboardEntry] {
+        if period == .allTime {
+            let snapshot = try await db.collection(Constants.Firebase.usersCollection)
+                .order(by: "totalFocusedSeconds", descending: true)
+                .limit(to: limit)
+                .getDocuments()
+
+            let users = snapshot.documents.compactMap { try? $0.data(as: User.self) }
+                .filter { $0.id != nil }
+            return users.enumerated().map { index, user in
+                LeaderboardEntry(from: user, rank: index + 1)
+            }
+        }
+
+        // For weekly/monthly, get top users and aggregate their sessions
+        let snapshot = try await db.collection(Constants.Firebase.usersCollection)
+            .order(by: "totalFocusedSeconds", descending: true)
+            .limit(to: limit * 2) // Fetch more to account for reordering
+            .getDocuments()
+
+        let users = snapshot.documents.compactMap { try? $0.data(as: User.self) }
+            .filter { $0.id != nil }
+
+        var userTotals: [(user: User, seconds: Int)] = []
+        let cutoffDate = period.cutoffDate
+
+        for user in users {
+            guard let userId = user.id else { continue }
+            let periodSeconds = try await getSessionsTotal(userId: userId, since: cutoffDate)
+            if periodSeconds > 0 {
+                userTotals.append((user, periodSeconds))
+            }
+        }
+
+        let sorted = userTotals.sorted { $0.seconds > $1.seconds }.prefix(limit)
+        return sorted.enumerated().map { index, item in
+            var entry = LeaderboardEntry(from: item.user, rank: index + 1)
+            entry.totalSeconds = item.seconds
+            return entry
+        }
+    }
+
+    private func getSessionsTotal(userId: String, since cutoffDate: Date) async throws -> Int {
+        let snapshot = try await db.collection(Constants.Firebase.usersCollection)
+            .document(userId)
+            .collection(Constants.Firebase.sessionsCollection)
+            .whereField("completedAt", isGreaterThan: Timestamp(date: cutoffDate))
+            .getDocuments()
+
+        let sessions = snapshot.documents.compactMap { try? $0.data(as: FocusSession.self) }
+        return sessions.reduce(0) { $0 + $1.durationSeconds }
     }
 
     // MARK: - Storage Operations
@@ -455,6 +552,7 @@ class FirebaseService {
                     return
                 }
                 let users = snapshot.documents.compactMap { try? $0.data(as: User.self) }
+                    .filter { $0.id != nil }
                 let entries = users.enumerated().map { index, user in
                     LeaderboardEntry(from: user, rank: index + 1)
                 }

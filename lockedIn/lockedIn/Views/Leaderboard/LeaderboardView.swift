@@ -359,16 +359,9 @@ struct LeaderboardListRow: View {
             Spacer()
 
             // Time
-            HStack(spacing: 6) {
-                Text(entry.formattedTime)
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(AppColors.greenLight)
-
-                // Trend indicator (visual only for now)
-                Image(systemName: entry.rank % 2 == 0 ? "arrowtriangle.up.fill" : "arrowtriangle.down.fill")
-                    .font(.system(size: 8))
-                    .foregroundColor(entry.rank % 2 == 0 ? AppColors.greenLight : Color(hex: "EF4444"))
-            }
+            Text(entry.formattedTime)
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundColor(AppColors.greenLight)
         }
         .padding(.vertical, 14)
         .padding(.horizontal, 4)
