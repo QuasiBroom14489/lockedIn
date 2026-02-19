@@ -45,6 +45,7 @@ class StudyFeedViewModel: ObservableObject {
 
     @Published var errorMessage: String?
     @Published var showError = false
+    @Published var softDiagnostics: [String] = []
 
     private let firebaseService = FirebaseService.shared
     private let authService = AuthService.shared
@@ -182,6 +183,11 @@ class StudyFeedViewModel: ObservableObject {
                     userVotes[postId] = try await firebaseService.getVote(postId: postId, userId: userId)
                 } catch {
                     userVotes[postId] = .none
+                    recordSoftDiagnostic(
+                        operation: "interaction_state_vote_lookup",
+                        postId: postId,
+                        error: error
+                    )
                 }
             }
 
@@ -192,7 +198,11 @@ class StudyFeedViewModel: ObservableObject {
                         favoritePostIds.insert(postId)
                     }
                 } catch {
-                    // Ignore individual lookup failures to avoid blocking feed rendering.
+                    recordSoftDiagnostic(
+                        operation: "interaction_state_favorite_lookup",
+                        postId: postId,
+                        error: error
+                    )
                 }
             }
         }
@@ -220,7 +230,9 @@ class StudyFeedViewModel: ObservableObject {
             applyVoteChangeLocally(postId: postId, from: currentVote, to: newVote)
             analyticsService.logVote(postId: postId, voteType: newVote.rawValue)
         } catch {
-            handleError(error)
+            showError(
+                message: "Vote action failed. operation=\(desired.rawValue) postId=\(postId) reason=\(error.localizedDescription)"
+            )
         }
     }
 
@@ -271,7 +283,9 @@ class StudyFeedViewModel: ObservableObject {
 
             analyticsService.logFavoriteToggled(postId: postId, isFavorited: newState)
         } catch {
-            handleError(error)
+            showError(
+                message: "Favorite action failed. operation=favorite postId=\(postId) reason=\(error.localizedDescription)"
+            )
         }
     }
 
@@ -360,6 +374,16 @@ class StudyFeedViewModel: ObservableObject {
     private func showError(message: String) {
         errorMessage = message
         showError = true
+    }
+
+    private func recordSoftDiagnostic(operation: String, postId: String, error: Error) {
+        let message = "Soft diagnostic. operation=\(operation) postId=\(postId) reason=\(error.localizedDescription)"
+        print(message)
+        softDiagnostics.append(message)
+
+        if softDiagnostics.count > 100 {
+            softDiagnostics.removeFirst(softDiagnostics.count - 100)
+        }
     }
 
     func clearErrorState() {

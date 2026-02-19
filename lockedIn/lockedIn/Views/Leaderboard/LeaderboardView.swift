@@ -30,6 +30,22 @@ struct LeaderboardView: View {
                     } else {
                         ScrollView {
                             VStack(spacing: 0) {
+                                if viewModel.didAutoFallbackToAllTime {
+                                    HStack(alignment: .center, spacing: 8) {
+                                        Image(systemName: "info.circle.fill")
+                                            .foregroundColor(AppColors.gold)
+                                        Text(viewModel.fallbackMessage ?? "No data for current filter yet. Showing All Time.")
+                                            .font(AppFonts.caption())
+                                            .foregroundColor(AppColors.textSecondary)
+                                        Spacer()
+                                    }
+                                    .padding(12)
+                                    .background(AppColors.surface)
+                                    .cornerRadius(12)
+                                    .padding(.horizontal)
+                                    .padding(.top, 16)
+                                }
+
                                 // Podium for Top 3
                                 if viewModel.entries.count >= 3 {
                                     LeaderboardPodiumView(

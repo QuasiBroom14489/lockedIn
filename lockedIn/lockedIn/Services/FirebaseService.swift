@@ -118,12 +118,48 @@ class FirebaseService {
     }
 
     func getStudyPosts(limit: Int = 50) async throws -> [StudyPost] {
-        let snapshot = try await db.collection(Constants.Firebase.studyPostsCollection)
-            .order(by: "createdAt", descending: true)
-            .limit(to: limit)
-            .getDocuments()
+        let collection = db.collection(Constants.Firebase.studyPostsCollection)
 
-        return snapshot.documents.compactMap { try? $0.data(as: StudyPost.self) }
+        do {
+            let orderedSnapshot = try await collection
+                .order(by: "createdAt", descending: true)
+                .limit(to: limit)
+                .getDocuments()
+
+            let orderedResult = decodeStudyPosts(from: orderedSnapshot)
+            print("FirebaseService.getStudyPosts primary query count=\(orderedResult.posts.count) missingCreatedAt=\(orderedResult.missingCreatedAtCount) missingUpdatedAt=\(orderedResult.missingUpdatedAtCount)")
+
+            // Compatibility path: if the ordered query unexpectedly returns too few results,
+            // pull a bounded unordered set and sort in memory.
+            if orderedResult.posts.count <= 1, limit > 1 {
+                let fallbackSnapshot = try await collection
+                    .limit(to: limit)
+                    .getDocuments()
+                let fallbackResult = decodeStudyPosts(from: fallbackSnapshot)
+                let sortedFallback = sortPostsForCompatibility(fallbackResult.posts)
+
+                print("FirebaseService.getStudyPosts fallback (small primary result) count=\(sortedFallback.count) missingCreatedAt=\(fallbackResult.missingCreatedAtCount) missingUpdatedAt=\(fallbackResult.missingUpdatedAtCount)")
+
+                if sortedFallback.count > orderedResult.posts.count {
+                    return sortedFallback
+                }
+            }
+
+            return orderedResult.posts
+        } catch {
+            // Compatibility path: legacy data shape / query issues should not blank the feed.
+            print("FirebaseService.getStudyPosts primary query failed: \(error.localizedDescription). Falling back to unordered query.")
+
+            let fallbackSnapshot = try await collection
+                .limit(to: limit)
+                .getDocuments()
+            let fallbackResult = decodeStudyPosts(from: fallbackSnapshot)
+            let sortedFallback = sortPostsForCompatibility(fallbackResult.posts)
+
+            print("FirebaseService.getStudyPosts fallback (primary failure) count=\(sortedFallback.count) missingCreatedAt=\(fallbackResult.missingCreatedAtCount) missingUpdatedAt=\(fallbackResult.missingUpdatedAtCount)")
+
+            return sortedFallback
+        }
     }
 
     func getPostsByAuthor(userId: String, limit: Int = 50) async throws -> [StudyPost] {
@@ -187,6 +223,11 @@ class FirebaseService {
         let voteId = voteDocumentId(postId: postId, userId: userId)
         let voteRef = db.collection(Constants.Firebase.votesCollection).document(voteId)
         let postRef = db.collection(Constants.Firebase.studyPostsCollection).document(postId)
+        let postDoc = try await postRef.getDocument()
+
+        guard postDoc.exists else {
+            throw FirebaseError.postNotFound
+        }
 
         let currentVoteDoc = try await voteRef.getDocument()
         let currentVote = (try? currentVoteDoc.data(as: Vote.self))?.type ?? .none
@@ -259,6 +300,74 @@ class FirebaseService {
         default:
             return (0, 0)
         }
+    }
+
+    private func decodeStudyPosts(from snapshot: QuerySnapshot) -> (posts: [StudyPost], missingCreatedAtCount: Int, missingUpdatedAtCount: Int) {
+        var posts: [StudyPost] = []
+        posts.reserveCapacity(snapshot.documents.count)
+        var missingCreatedAtCount = 0
+        var missingUpdatedAtCount = 0
+
+        for document in snapshot.documents {
+            let raw = document.data()
+            let createdAt = timestampDate(forKey: "createdAt", in: raw)
+            let updatedAt = timestampDate(forKey: "updatedAt", in: raw)
+
+            if createdAt == nil {
+                missingCreatedAtCount += 1
+            }
+            if updatedAt == nil {
+                missingUpdatedAtCount += 1
+            }
+
+            guard var post = try? document.data(as: StudyPost.self) else {
+                continue
+            }
+
+            if post.id == nil {
+                post.id = document.documentID
+            }
+
+            // Normalize legacy documents that are missing timestamps so sorting is stable.
+            if createdAt == nil {
+                post.createdAt = updatedAt ?? Date.distantPast
+            }
+            if updatedAt == nil {
+                post.updatedAt = post.createdAt
+            }
+
+            posts.append(post)
+        }
+
+        return (posts, missingCreatedAtCount, missingUpdatedAtCount)
+    }
+
+    private func timestampDate(forKey key: String, in data: [String: Any]) -> Date? {
+        if let timestamp = data[key] as? Timestamp {
+            return timestamp.dateValue()
+        }
+        if let date = data[key] as? Date {
+            return date
+        }
+        return nil
+    }
+
+    private func sortPostsForCompatibility(_ posts: [StudyPost]) -> [StudyPost] {
+        posts.sorted { lhs, rhs in
+            let lhsDate = compatibilitySortDate(for: lhs)
+            let rhsDate = compatibilitySortDate(for: rhs)
+            return lhsDate > rhsDate
+        }
+    }
+
+    private func compatibilitySortDate(for post: StudyPost) -> Date {
+        if post.createdAt != Date.distantPast {
+            return post.createdAt
+        }
+        if post.updatedAt != Date.distantPast {
+            return post.updatedAt
+        }
+        return Date.distantPast
     }
 
     // MARK: - Favorite Operations
@@ -567,6 +676,7 @@ enum FirebaseError: LocalizedError {
     case invalidData
     case notAuthenticated
     case userNotFound
+    case postNotFound
 
     var errorDescription: String? {
         switch self {
@@ -576,6 +686,8 @@ enum FirebaseError: LocalizedError {
             return "User is not authenticated"
         case .userNotFound:
             return "User not found"
+        case .postNotFound:
+            return "Post not found"
         }
     }
 }

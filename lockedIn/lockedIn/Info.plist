@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
 	<key>NSCameraUsageDescription</key>
-	<string>lockedIn uses the camera to verify you're focused during study sessions.</string>
+	<string>lockedIn uses the camera only when you choose to capture a profile photo.</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>remote-notification</string>

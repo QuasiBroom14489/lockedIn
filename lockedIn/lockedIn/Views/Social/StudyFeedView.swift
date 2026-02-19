@@ -46,7 +46,7 @@ struct StudyFeedView: View {
             .alert("Error", isPresented: $viewModel.showError) {
                 Button("OK", role: .cancel) {}
             } message: {
-                Text(viewModel.errorMessage ?? "An error occurred.")
+                Text(viewModel.errorMessage ?? "No additional error details available.")
             }
             .sheet(isPresented: $showingComposer) {
                 SharePostSheet(viewModel: viewModel)

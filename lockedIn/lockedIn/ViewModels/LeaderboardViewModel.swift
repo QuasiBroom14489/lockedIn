@@ -11,6 +11,8 @@ class LeaderboardViewModel: ObservableObject {
     @Published var isLoading = false
     @Published var errorMessage: String?
     @Published var showError = false
+    @Published var didAutoFallbackToAllTime = false
+    @Published var fallbackMessage: String?
 
     @Published var currentUserRank: Int?
     @Published var currentUserEntry: LeaderboardEntry?
@@ -59,10 +61,31 @@ class LeaderboardViewModel: ObservableObject {
         isLoading = true
 
         do {
+            let requestedPeriod = selectedPeriod
+            let requestedFriendsOnly = showFriendsOnly
+            let requestedEntries: [LeaderboardEntry]
+
             if showFriendsOnly, let userId = authService.currentUserId {
-                entries = try await firebaseService.getFriendsLeaderboard(userId: userId, period: selectedPeriod)
+                requestedEntries = try await firebaseService.getFriendsLeaderboard(userId: userId, period: selectedPeriod)
             } else {
-                entries = try await firebaseService.getLeaderboard(limit: 100, period: selectedPeriod)
+                requestedEntries = try await firebaseService.getLeaderboard(limit: 100, period: selectedPeriod)
+            }
+
+            if requestedEntries.isEmpty && (requestedPeriod != .allTime || requestedFriendsOnly) {
+                let fallbackEntries = try await firebaseService.getLeaderboard(limit: 100, period: .allTime)
+                entries = fallbackEntries
+
+                if !fallbackEntries.isEmpty {
+                    didAutoFallbackToAllTime = true
+                    fallbackMessage = "No data for current filter yet. Showing All Time."
+                } else {
+                    didAutoFallbackToAllTime = false
+                    fallbackMessage = nil
+                }
+            } else {
+                entries = requestedEntries
+                didAutoFallbackToAllTime = false
+                fallbackMessage = nil
             }
 
             updateCurrentUserRank()
