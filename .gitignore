@@ -32,3 +32,6 @@ Pods/
 # Secrets
 *.pem
 *.p12
+
+# Node
+node_modules/
