@@ -24,6 +24,7 @@ struct StudyPost: Identifiable, Codable {
     var stackItems: [StudyStackItem]?
     var tools: [String]
     var tags: [String]
+    var classKeys: [String]
     var upvoteCount: Int
     var downvoteCount: Int
     var favoriteCount: Int
@@ -33,7 +34,7 @@ struct StudyPost: Identifiable, Codable {
 
     enum CodingKeys: String, CodingKey {
         case id, authorId, authorName, authorPhotoURL
-        case type, title, content, stackItems, tools, tags
+        case type, title, content, stackItems, tools, tags, classKeys
         case upvoteCount, downvoteCount, favoriteCount, hotScore
         case createdAt, updatedAt
     }
@@ -51,6 +52,7 @@ struct StudyPost: Identifiable, Codable {
         stackItems = try container.decodeIfPresent([StudyStackItem].self, forKey: .stackItems)
         tools = try container.decodeIfPresent([String].self, forKey: .tools) ?? []
         tags = try container.decodeIfPresent([String].self, forKey: .tags) ?? []
+        classKeys = try container.decodeIfPresent([String].self, forKey: .classKeys) ?? []
         upvoteCount = try container.decodeIfPresent(Int.self, forKey: .upvoteCount) ?? 0
         downvoteCount = try container.decodeIfPresent(Int.self, forKey: .downvoteCount) ?? 0
         favoriteCount = try container.decodeIfPresent(Int.self, forKey: .favoriteCount) ?? 0
@@ -70,6 +72,7 @@ struct StudyPost: Identifiable, Codable {
         stackItems: [StudyStackItem]? = nil,
         tools: [String] = [],
         tags: [String] = [],
+        classKeys: [String] = [],
         upvoteCount: Int = 0,
         downvoteCount: Int = 0,
         favoriteCount: Int = 0,
@@ -87,6 +90,7 @@ struct StudyPost: Identifiable, Codable {
         self.stackItems = stackItems
         self.tools = tools
         self.tags = tags
+        self.classKeys = classKeys
         self.upvoteCount = upvoteCount
         self.downvoteCount = downvoteCount
         self.favoriteCount = favoriteCount
@@ -122,6 +126,7 @@ extension StudyPost {
             ],
             tools: ["Anki", "Notion", "Forest"],
             tags: ["exam", "deep-work", "active-recall"],
+            classKeys: ["CSE20312_FALL2025"],
             upvoteCount: 32,
             downvoteCount: 3,
             favoriteCount: 18,

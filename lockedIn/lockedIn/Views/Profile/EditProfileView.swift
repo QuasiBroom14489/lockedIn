@@ -75,6 +75,69 @@ struct EditProfileView: View {
                     }
                 }
 
+                // Dorm Selection
+                Section {
+                    Picker("Dorm", selection: $viewModel.editDorm) {
+                        Text("Select Dorm").tag("")
+
+                        Section("Men's Halls") {
+                            ForEach(Dorm.mensDorms) { dorm in
+                                Label {
+                                    Text(dorm.displayName)
+                                } icon: {
+                                    Image(systemName: dorm.icon)
+                                        .foregroundColor(dorm.color)
+                                }
+                                .tag(dorm.displayName)
+                            }
+                        }
+
+                        Section("Women's Halls") {
+                            ForEach(Dorm.womensDorms) { dorm in
+                                Label {
+                                    Text(dorm.displayName)
+                                } icon: {
+                                    Image(systemName: dorm.icon)
+                                        .foregroundColor(dorm.color)
+                                }
+                                .tag(dorm.displayName)
+                            }
+                        }
+
+                        Section("Other") {
+                            ForEach(Dorm.otherDorms) { dorm in
+                                Label {
+                                    Text(dorm.displayName)
+                                } icon: {
+                                    Image(systemName: dorm.icon)
+                                        .foregroundColor(dorm.color)
+                                }
+                                .tag(dorm.displayName)
+                            }
+                        }
+                    }
+                    .pickerStyle(.navigationLink)
+
+                    // Show current dorm badge preview
+                    if let dorm = Dorm.from(string: viewModel.editDorm) {
+                        HStack {
+                            Text("Preview")
+                                .font(.caption)
+                                .foregroundColor(AppColors.textSecondary)
+                            Spacer()
+                            DormBadgeView(dorm: dorm, style: .compact)
+                        }
+                    }
+                } header: {
+                    HStack {
+                        Image(systemName: "building.2.fill")
+                            .foregroundColor(AppColors.gold)
+                        Text("Residence Hall")
+                    }
+                } footer: {
+                    Text("Your dorm will appear on your profile with a unique badge")
+                }
+
                 // Spotify
                 Section {
                     TextField("Spotify Playlist URL", text: $viewModel.editSpotifyURL)
@@ -132,6 +195,36 @@ struct EditProfileView: View {
                     Text("Study Tools")
                 } footer: {
                     Text("Select the tools you use for studying")
+                }
+
+                Section {
+                    if viewModel.editStudyTools.isEmpty {
+                        Text("Select tools above first.")
+                            .foregroundColor(.secondary)
+                    } else {
+                        ForEach(viewModel.editStudyTools, id: \.self) { tool in
+                            Button {
+                                viewModel.togglePrimaryStudyTool(tool)
+                            } label: {
+                                HStack {
+                                    Text(tool)
+                                        .foregroundColor(.primary)
+                                    Spacer()
+                                    if viewModel.editPrimaryStudyTools.contains(tool) {
+                                        Image(systemName: "star.fill")
+                                            .foregroundColor(AppColors.gold)
+                                    } else {
+                                        Image(systemName: "star")
+                                            .foregroundColor(.secondary)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } header: {
+                    Text("Main Stack / Primary Tools")
+                } footer: {
+                    Text("Pick tools to feature first on your profile.")
                 }
 
                 // Tips

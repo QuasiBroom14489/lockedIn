@@ -23,8 +23,23 @@ struct SharePostSheet: View {
     @State private var title = ""
     @State private var content = ""
     @State private var tagsText = ""
+    @State private var tagTokens: [String] = []
+    @State private var suggestedClasses: [GlobalClass] = []
+    @State private var classSearchQuery = ""
+    @State private var selectedClassKeys = Set<String>()
+    @State private var isLoadingClasses = false
+    @State private var classSelectionError: String?
+    @State private var suggestedTools: [GlobalTool] = []
+    @State private var popularTools: [GlobalTool] = []
+    @State private var userTools: [String] = []
+    @State private var toolSearchQuery = ""
+    @State private var isLoadingTools = false
+    @State private var toolSelectionError: String?
 
     @State private var stackItems: [StudyStackItem] = [StudyStackItem(toolName: "", linkURL: nil, usageNote: nil)]
+
+    private let firebaseService = FirebaseService.shared
+    private let authService = AuthService.shared
 
     var body: some View {
         NavigationStack {
@@ -58,6 +73,10 @@ struct SharePostSheet: View {
                     }
                 }
             }
+            .task {
+                await loadAvailableClasses()
+                await loadAvailableTools()
+            }
         }
     }
 
@@ -66,7 +85,7 @@ struct SharePostSheet: View {
             ForEach(ComposerStep.allCases, id: \.self) { composerStep in
                 let isActive = composerStep.rawValue == step.rawValue
                 Text(composerStep.title)
-                    .font(.caption)
+                    .font(.caption.weight(.semibold))
                     .foregroundColor(isActive ? AppColors.background : AppColors.textSecondary)
                     .padding(.horizontal, 10)
                     .padding(.vertical, 6)
@@ -84,15 +103,25 @@ struct SharePostSheet: View {
                 .font(AppFonts.headline())
                 .foregroundColor(AppColors.textPrimary)
 
-            Picker("Post Type", selection: $postType) {
-                Text("Stack").tag(StudyPostType.stack)
-                Text("Suggestion").tag(StudyPostType.tip)
+            HStack(spacing: 12) {
+                typeSelectionCard(
+                    type: .stack,
+                    title: "Stack",
+                    subtitle: "Structured workflow",
+                    detail: "Best for tool-driven routines with short notes and links."
+                )
+
+                typeSelectionCard(
+                    type: .tip,
+                    title: "Suggestion",
+                    subtitle: "Quick strategy",
+                    detail: "Best for concise study ideas with tags for discovery."
+                )
             }
-            .pickerStyle(.segmented)
 
             Text(postType == .stack
-                 ? "Stack posts show tools, links, and how each tool is used."
-                 : "Suggestion posts focus on practical ideas with tags for discovery.")
+                 ? "Stack posts work best when each tool has a clear role in your flow."
+                 : "Suggestion posts should be concise, practical, and easy to apply.")
                 .font(AppFonts.body())
                 .foregroundColor(AppColors.textSecondary)
 
@@ -103,33 +132,77 @@ struct SharePostSheet: View {
         }
     }
 
+    private func typeSelectionCard(type: StudyPostType, title: String, subtitle: String, detail: String) -> some View {
+        let isSelected = postType == type
+
+        return Button {
+            postType = type
+        } label: {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Text(title)
+                        .font(.headline)
+                        .foregroundColor(AppColors.textPrimary)
+
+                    Spacer(minLength: 0)
+
+                    Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                        .foregroundColor(isSelected ? AppColors.gold : AppColors.textTertiary)
+                }
+
+                Text(subtitle)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundColor(isSelected ? AppColors.gold : AppColors.textSecondary)
+
+                Text(detail)
+                    .font(.caption)
+                    .foregroundColor(AppColors.textSecondary)
+                    .multilineTextAlignment(.leading)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(12)
+            .background(
+                RoundedRectangle(cornerRadius: 14)
+                    .fill(isSelected ? AppColors.surfaceElevated : AppColors.surface)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 14)
+                    .stroke(isSelected ? AppColors.gold.opacity(0.7) : AppColors.borderSubtle, lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+    }
+
     private var detailsStep: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: 14) {
             Text("Add your content")
                 .font(AppFonts.headline())
                 .foregroundColor(AppColors.textPrimary)
 
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Title")
-                    .font(AppFonts.caption())
-                    .foregroundColor(AppColors.textSecondary)
+            sectionCard(title: "Title", subtitle: "Required") {
                 TextField(postType == .stack ? "Example: Finals prep stack" : "Example: Study suggestion", text: $title)
-                    .textFieldStyle(.roundedBorder)
+                    .modernInputField()
+                if title.trimmed.isEmpty {
+                    validationText("A title is required.")
+                }
             }
 
-            VStack(alignment: .leading, spacing: 8) {
-                Text(postType == .stack ? "Overview" : "Suggestion")
-                    .font(AppFonts.caption())
-                    .foregroundColor(AppColors.textSecondary)
+            sectionCard(title: postType == .stack ? "Overview" : "Suggestion", subtitle: "Required") {
                 TextEditor(text: $content)
-                    .frame(minHeight: 110)
-                    .padding(6)
-                    .background(AppColors.surface)
-                    .cornerRadius(Constants.UI.cornerRadius)
+                    .frame(minHeight: 120)
+                    .padding(8)
+                    .background(
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(AppColors.surface)
+                    )
                     .overlay(
-                        RoundedRectangle(cornerRadius: Constants.UI.cornerRadius)
+                        RoundedRectangle(cornerRadius: 12)
                             .stroke(AppColors.borderSubtle, lineWidth: 1)
                     )
+
+                if content.trimmed.isEmpty {
+                    validationText("Add the core idea before previewing.")
+                }
             }
 
             if postType == .stack {
@@ -138,6 +211,8 @@ struct SharePostSheet: View {
                 suggestionTagsEditor
             }
 
+            classSelectorSection
+
             HStack(spacing: 10) {
                 Button("Back") {
                     step = .type
@@ -145,6 +220,7 @@ struct SharePostSheet: View {
                 .secondaryButtonStyle()
 
                 Button("Preview") {
+                    commitPendingTagInput()
                     step = .preview
                 }
                 .primaryButtonStyle()
@@ -154,68 +230,151 @@ struct SharePostSheet: View {
     }
 
     private var stackItemsEditor: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Text("Stack Tools")
-                    .font(AppFonts.headline())
-                    .foregroundColor(AppColors.textPrimary)
-                Spacer()
-                Button {
-                    stackItems.append(StudyStackItem(toolName: "", linkURL: nil, usageNote: nil))
-                } label: {
-                    Label("Add Tool", systemImage: "plus")
-                        .font(.caption)
+        sectionCard(title: "Stack Tools", subtitle: "At least one required") {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack {
+                    Spacer()
+                    Button {
+                        stackItems.append(StudyStackItem(toolName: "", linkURL: nil, usageNote: nil))
+                    } label: {
+                        Label("Add Tool", systemImage: "plus")
+                            .font(.caption.weight(.semibold))
+                            .foregroundColor(AppColors.gold)
+                    }
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
-                .foregroundColor(AppColors.gold)
-            }
 
-            ForEach(Array(stackItems.enumerated()), id: \.element.id) { index, _ in
                 VStack(alignment: .leading, spacing: 8) {
-                    HStack {
-                        Text("Tool \(index + 1)")
-                            .font(.subheadline)
-                            .fontWeight(.semibold)
-                            .foregroundColor(AppColors.textPrimary)
-                        Spacer()
-                        if stackItems.count > 1 {
-                            Button("Remove") {
-                                stackItems.remove(at: index)
+                    TextField("Search tools (e.g. Notion, Obsidian)", text: $toolSearchQuery)
+                        .modernInputField()
+                        .onChange(of: toolSearchQuery) { _, newValue in
+                            Task { await loadAvailableTools(query: newValue) }
+                        }
+
+                    if isLoadingTools {
+                        ProgressView()
+                            .tint(AppColors.gold)
+                    } else {
+                        if !userTools.isEmpty {
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("Your Tools")
+                                    .font(AppFonts.caption())
+                                    .foregroundColor(AppColors.textSecondary)
+                                FlowLayout(spacing: 8) {
+                                    ForEach(userTools, id: \.self) { tool in
+                                        toolChip(title: tool) {
+                                            addToolToStack(tool)
+                                        }
+                                    }
+                                }
                             }
-                            .font(.caption)
-                            .foregroundColor(AppColors.error)
+                        }
+
+                        if !popularTools.isEmpty && toolSearchQuery.trimmed.isEmpty {
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("Popular on lockedIn")
+                                    .font(AppFonts.caption())
+                                    .foregroundColor(AppColors.textSecondary)
+                                FlowLayout(spacing: 8) {
+                                    ForEach(popularTools.prefix(8), id: \.id) { tool in
+                                        toolChip(title: tool.displayName) {
+                                            addToolToStack(tool.displayName)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        if !suggestedTools.isEmpty && toolSearchQuery.trimmed.isNotEmpty {
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("Search Results")
+                                    .font(AppFonts.caption())
+                                    .foregroundColor(AppColors.textSecondary)
+                                FlowLayout(spacing: 8) {
+                                    ForEach(suggestedTools, id: \.id) { tool in
+                                        toolChip(title: tool.displayName) {
+                                            addToolToStack(tool.displayName)
+                                        }
+                                    }
+                                }
+                            }
+                        } else if toolSearchQuery.trimmed.isNotEmpty {
+                            Button {
+                                Task { await addCustomToolFromSearch() }
+                            } label: {
+                                Label("Add \"\(toolSearchQuery.trimmed)\" to stack", systemImage: "plus.circle.fill")
+                                    .font(AppFonts.caption())
+                                    .foregroundColor(AppColors.gold)
+                            }
+                            .buttonStyle(.plain)
                         }
                     }
 
-                    TextField("Tool name (required)", text: bindingForStackItem(at: index, keyPath: \.toolName))
-                        .textFieldStyle(.roundedBorder)
-
-                    TextField("Link URL (optional)", text: bindingForOptionalStackItem(at: index, keyPath: \.linkURL))
-                        .textFieldStyle(.roundedBorder)
-                        .keyboardType(.URL)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled(true)
-
-                    TextField("How you use it (optional)", text: bindingForOptionalStackItem(at: index, keyPath: \.usageNote))
-                        .textFieldStyle(.roundedBorder)
+                    if let toolSelectionError, toolSelectionError.isNotEmpty {
+                        validationText(toolSelectionError)
+                    }
                 }
-                .padding(10)
-                .background(
-                    RoundedRectangle(cornerRadius: 10)
-                        .fill(AppColors.surfaceElevated)
-                )
+
+                ForEach(Array(stackItems.enumerated()), id: \.element.id) { index, _ in
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            Text("Tool \(index + 1)")
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundColor(AppColors.textPrimary)
+                            Spacer()
+                            if stackItems.count > 1 {
+                                Button("Remove") {
+                                    stackItems.remove(at: index)
+                                }
+                                .font(.caption)
+                                .foregroundColor(AppColors.error)
+                            }
+                        }
+
+                        TextField("Tool name", text: bindingForStackItem(at: index, keyPath: \.toolName))
+                            .modernInputField()
+
+                        TextField("Link URL (Optional)", text: bindingForOptionalStackItem(at: index, keyPath: \.linkURL))
+                            .modernInputField()
+                            .keyboardType(.URL)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled(true)
+
+                        TextField("How you use it (Optional)", text: bindingForOptionalStackItem(at: index, keyPath: \.usageNote))
+                            .modernInputField()
+                    }
+                    .padding(10)
+                    .background(
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(AppColors.surface.opacity(0.75))
+                    )
+                }
+
+                if normalizedStackItems.isEmpty {
+                    validationText("Add at least one tool name.")
+                }
             }
         }
     }
 
     private var suggestionTagsEditor: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Tags")
-                .font(AppFonts.headline())
-                .foregroundColor(AppColors.textPrimary)
-            TextField("active-recall, finals, writing", text: $tagsText)
-                .textFieldStyle(.roundedBorder)
-            Text("Use comma-separated tags to help others discover this suggestion.")
+        sectionCard(title: "Tags", subtitle: "Optional") {
+            TextField("Type a tag, then comma or return", text: $tagsText)
+                .modernInputField()
+                .submitLabel(.done)
+                .onSubmit {
+                    commitPendingTagInput()
+                }
+                .onChange(of: tagsText) { _, newValue in
+                    guard newValue.contains(",") else { return }
+                    commitPendingTagInput()
+                }
+
+            if !tagTokens.isEmpty {
+                TagChipRowView(tags: tagTokens)
+            }
+
+            Text("Use tags to improve discovery in the feed.")
                 .font(AppFonts.caption())
                 .foregroundColor(AppColors.textSecondary)
         }
@@ -230,7 +389,8 @@ struct SharePostSheet: View {
             StudyPostRow(
                 post: previewPost,
                 currentVote: .none,
-                isFavorited: false
+                isFavorited: false,
+                enableExpandableContent: false
             )
 
             HStack(spacing: 10) {
@@ -264,7 +424,8 @@ struct SharePostSheet: View {
             content: content.trimmed,
             stackItems: postType == .stack ? normalizedStackItems : nil,
             tools: postType == .stack ? normalizedStackItems.map(\.toolName) : [],
-            tags: normalizedTags
+            tags: normalizedTags,
+            classKeys: Array(selectedClassKeys).sorted()
         )
     }
 
@@ -292,13 +453,16 @@ struct SharePostSheet: View {
     }
 
     private var normalizedTags: [String] {
-        tagsText
-            .split(separator: ",")
-            .map { String($0).trimmed.replacingOccurrences(of: "#", with: "") }
-            .filter { $0.isNotEmpty }
+        var combined = tagTokens
+        let trailing = tagsText.trimmed.replacingOccurrences(of: "#", with: "")
+        if trailing.isNotEmpty {
+            combined.append(trailing)
+        }
+        return Array(Set(combined.map { $0.trimmed }.filter { $0.isNotEmpty })).sorted()
     }
 
     private func submitPost() async {
+        commitPendingTagInput()
         viewModel.clearErrorState()
 
         await viewModel.createPost(
@@ -307,12 +471,200 @@ struct SharePostSheet: View {
             content: content,
             stackItems: postType == .stack ? normalizedStackItems : nil,
             tools: postType == .stack ? normalizedStackItems.map(\.toolName) : [],
-            tags: normalizedTags
+            tags: normalizedTags,
+            classKeys: Array(selectedClassKeys).sorted()
         )
 
         if !viewModel.showError {
             dismiss()
         }
+    }
+
+    private func commitPendingTagInput() {
+        let candidates = tagsText
+            .split(separator: ",")
+            .map { String($0).trimmed.replacingOccurrences(of: "#", with: "") }
+            .filter { $0.isNotEmpty }
+
+        if !candidates.isEmpty {
+            let combined = tagTokens + candidates
+            tagTokens = Array(Set(combined)).sorted()
+        }
+
+        tagsText = ""
+    }
+
+    private var classSelectorSection: some View {
+        sectionCard(title: "Class", subtitle: "Optional") {
+            TextField("Search classes (e.g. CSE20312)", text: $classSearchQuery)
+                .modernInputField()
+                .onChange(of: classSearchQuery) { _, newValue in
+                    Task { await loadAvailableClasses(query: newValue) }
+                }
+
+            if isLoadingClasses {
+                ProgressView()
+                    .tint(AppColors.gold)
+            } else if suggestedClasses.isEmpty {
+                Text("No classes found yet. Add one from Profile > Classes.")
+                    .font(AppFonts.caption())
+                    .foregroundColor(AppColors.textSecondary)
+            } else {
+                FlowLayout(spacing: 8) {
+                    ForEach(suggestedClasses, id: \.id) { globalClass in
+                        let isSelected = selectedClassKeys.contains(globalClass.id)
+                        Button {
+                            if isSelected {
+                                selectedClassKeys.remove(globalClass.id)
+                            } else {
+                                selectedClassKeys.insert(globalClass.id)
+                            }
+                        } label: {
+                            Text(globalClass.courseCode)
+                                .font(AppFonts.caption())
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 8)
+                                .background(isSelected ? AppColors.gold : AppColors.surface)
+                                .foregroundColor(isSelected ? AppColors.background : AppColors.textSecondary)
+                                .clipShape(Capsule())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+
+            if let classSelectionError, classSelectionError.isNotEmpty {
+                validationText(classSelectionError)
+            }
+        }
+    }
+
+    private func loadAvailableClasses() async {
+        guard let userId = authService.currentUserId else { return }
+        await loadAvailableClasses(query: classSearchQuery, userId: userId)
+    }
+
+    private func loadAvailableClasses(query: String, userId: String? = nil) async {
+        guard let resolvedUserId = userId ?? authService.currentUserId else { return }
+        isLoadingClasses = true
+        defer { isLoadingClasses = false }
+
+        do {
+            suggestedClasses = try await firebaseService.getSuggestedClassesForUserComposer(
+                userId: resolvedUserId,
+                query: query
+            )
+            classSelectionError = nil
+        } catch {
+            classSelectionError = "Could not load classes."
+        }
+    }
+
+    private func loadAvailableTools() async {
+        guard let userId = authService.currentUserId else { return }
+        await loadAvailableTools(query: toolSearchQuery, userId: userId)
+    }
+
+    private func loadAvailableTools(query: String, userId: String? = nil) async {
+        guard let resolvedUserId = userId ?? authService.currentUserId else { return }
+        isLoadingTools = true
+        defer { isLoadingTools = false }
+
+        do {
+            let user = try await firebaseService.getUser(id: resolvedUserId)
+            userTools = user?.primaryStudyTools.isEmpty == false
+                ? user?.primaryStudyTools ?? []
+                : user?.studyTools ?? []
+            popularTools = try await firebaseService.getPopularGlobalTools(limit: 20)
+            suggestedTools = try await firebaseService.getSuggestedToolsForUserComposer(
+                userId: resolvedUserId,
+                query: query
+            )
+            toolSelectionError = nil
+        } catch {
+            toolSelectionError = "Could not load tools."
+        }
+    }
+
+    private func addToolToStack(_ toolName: String) {
+        let trimmed = toolName.trimmed
+        guard trimmed.isNotEmpty else { return }
+
+        if let emptyIndex = stackItems.firstIndex(where: { $0.toolName.trimmed.isEmpty }) {
+            stackItems[emptyIndex].toolName = trimmed
+        } else if !normalizedCurrentToolNames.contains(GlobalTool.normalizedId(from: trimmed)) {
+            stackItems.append(
+                StudyStackItem(
+                    toolName: trimmed,
+                    linkURL: nil,
+                    usageNote: nil
+                )
+            )
+        }
+
+        toolSearchQuery = ""
+    }
+
+    private func addCustomToolFromSearch() async {
+        guard let userId = authService.currentUserId else { return }
+        let trimmed = toolSearchQuery.trimmed
+        guard trimmed.isNotEmpty else { return }
+
+        do {
+            let canonical = try await firebaseService.createGlobalToolIfNeeded(
+                displayName: trimmed,
+                category: nil,
+                createdByUserId: userId
+            )
+            addToolToStack(canonical.displayName)
+            await loadAvailableTools(query: "")
+            toolSelectionError = nil
+        } catch {
+            toolSelectionError = "Could not add this tool."
+        }
+    }
+
+    private func sectionCard<Content: View>(title: String, subtitle: String, @ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text(title)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundColor(AppColors.textPrimary)
+                Text(subtitle)
+                    .font(.caption.weight(.semibold))
+                    .foregroundColor(AppColors.textTertiary)
+            }
+
+            content()
+        }
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: 14)
+                .fill(AppColors.surfaceElevated.opacity(0.72))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 14)
+                .stroke(AppColors.borderSubtle, lineWidth: 1)
+        )
+    }
+
+    private func validationText(_ text: String) -> some View {
+        Text(text)
+            .font(.caption)
+            .foregroundColor(AppColors.warning)
+    }
+
+    private func toolChip(title: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(title)
+                .font(AppFonts.caption())
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(AppColors.surface)
+                .foregroundColor(AppColors.textSecondary)
+                .clipShape(Capsule())
+        }
+        .buttonStyle(.plain)
     }
 
     private func bindingForStackItem(
@@ -336,6 +688,27 @@ struct SharePostSheet: View {
                 stackItems[index][keyPath: keyPath] = trimmed.isEmpty ? nil : trimmed
             }
         )
+    }
+
+    private var normalizedCurrentToolNames: Set<String> {
+        Set(stackItems.map { GlobalTool.normalizedId(from: $0.toolName) }.filter(\.isNotEmpty))
+    }
+}
+
+private extension View {
+    func modernInputField() -> some View {
+        self
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(AppColors.surface.opacity(0.88))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(AppColors.borderSubtle, lineWidth: 1)
+            )
+            .foregroundColor(AppColors.textPrimary)
     }
 }
 

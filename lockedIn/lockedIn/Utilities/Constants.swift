@@ -4,13 +4,16 @@ import SwiftUI
 enum Constants {
     enum Firebase {
         static let usersCollection = "users"
+        static let globalClassesCollection = "classes"
         static let sessionsCollection = "sessions"
         static let followingCollection = "following"
         static let followersCollection = "followers"
+        static let classesCollection = "classes"
         static let leaderboardCollection = "leaderboard"
         static let studyPostsCollection = "studyPosts"
         static let votesCollection = "votes"
         static let favoritesCollection = "favorites"
+        static let toolsCollection = "tools"
     }
 
     enum Storage {
@@ -47,6 +50,28 @@ enum Constants {
         static let profileImageSize: CGFloat = 100
         static let leaderboardRowImageSize: CGFloat = 44
         static let feedRowImageSize: CGFloat = 40
+        static let postCardCornerRadius: CGFloat = 18
+        static let postCardVerticalSpacing: CGFloat = 14
+        static let postChipCornerRadius: CGFloat = 12
+        static let postCollapsedLineLimit: Int = 3
+        static let postCollapsedStackCount: Int = 2
+        static let focusCardCornerRadius: CGFloat = 20
+        static let focusHeroPadding: CGFloat = 18
+        static let focusAmbientOpacity: Double = 0.35
+        static let focusAnimationDuration: Double = 0.35
+        static let miniPlayerControlSize: CGFloat = 38
+    }
+
+    enum Spotify {
+        // TODO: Replace with your Spotify Developer app credentials
+        static let clientID = "1c378f859f5c4b40ba4c4b20bcf68f64"
+        static let redirectURL = URL(string: "lockedin://spotify-callback")!
+        static let scopes: [String] = [
+            "app-remote-control",
+            "user-modify-playback-state",
+            "user-read-playback-state",
+            "user-read-currently-playing"
+        ]
     }
 }
 
@@ -107,5 +132,21 @@ enum AppFonts {
 
     static func timer() -> Font {
         .system(size: 72, weight: .bold, design: .monospaced)
+    }
+
+    static func focusDisplay() -> Font {
+        .system(size: 76, weight: .bold, design: .rounded)
+    }
+
+    static func focusHeader() -> Font {
+        .system(size: 24, weight: .bold, design: .rounded)
+    }
+
+    static func focusBody() -> Font {
+        .system(size: 17, weight: .regular, design: .rounded)
+    }
+
+    static func focusCaption() -> Font {
+        .system(size: 13, weight: .medium, design: .rounded)
     }
 }

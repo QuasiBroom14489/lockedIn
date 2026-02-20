@@ -7,9 +7,11 @@ struct User: Identifiable, Codable {
     var displayName: String
     var photoURL: String?
     var major: String?
+    var dorm: String?
     var year: String?
     var spotifyPlaylistURL: String?
     var studyTools: [String]
+    var primaryStudyTools: [String]
     var tips: String?
     var totalFocusedSeconds: Int
     var points: Int
@@ -17,6 +19,9 @@ struct User: Identifiable, Codable {
     var dailyNonProductiveMinutes: Int
     var screenTimeUpdatedAt: Date?
     var screenTimeVisibilityEnabled: Bool
+    var currentStreak: Int
+    var longestStreak: Int
+    var lastActiveDate: Date?
     var selectedTitle: String?
     var selectedFrame: String?
     var unlockedCosmetics: [String]
@@ -24,10 +29,11 @@ struct User: Identifiable, Codable {
     var updatedAt: Date
 
     enum CodingKeys: String, CodingKey {
-        case id, email, displayName, photoURL, major, year
-        case spotifyPlaylistURL, studyTools, tips, totalFocusedSeconds
+        case id, email, displayName, photoURL, major, dorm, year
+        case spotifyPlaylistURL, studyTools, primaryStudyTools, tips, totalFocusedSeconds
         case points, dailyProductiveMinutes, dailyNonProductiveMinutes
         case screenTimeUpdatedAt, screenTimeVisibilityEnabled
+        case currentStreak, longestStreak, lastActiveDate
         case selectedTitle, selectedFrame, unlockedCosmetics
         case createdAt, updatedAt
     }
@@ -41,9 +47,11 @@ struct User: Identifiable, Codable {
         displayName = try container.decodeIfPresent(String.self, forKey: .displayName) ?? ""
         photoURL = try container.decodeIfPresent(String.self, forKey: .photoURL)
         major = try container.decodeIfPresent(String.self, forKey: .major)
+        dorm = try container.decodeIfPresent(String.self, forKey: .dorm)
         year = try container.decodeIfPresent(String.self, forKey: .year)
         spotifyPlaylistURL = try container.decodeIfPresent(String.self, forKey: .spotifyPlaylistURL)
         studyTools = try container.decodeIfPresent([String].self, forKey: .studyTools) ?? []
+        primaryStudyTools = try container.decodeIfPresent([String].self, forKey: .primaryStudyTools) ?? []
         tips = try container.decodeIfPresent(String.self, forKey: .tips)
         totalFocusedSeconds = try container.decodeIfPresent(Int.self, forKey: .totalFocusedSeconds) ?? 0
         points = try container.decodeIfPresent(Int.self, forKey: .points) ?? 0
@@ -51,6 +59,9 @@ struct User: Identifiable, Codable {
         dailyNonProductiveMinutes = try container.decodeIfPresent(Int.self, forKey: .dailyNonProductiveMinutes) ?? 0
         screenTimeUpdatedAt = try container.decodeIfPresent(Date.self, forKey: .screenTimeUpdatedAt)
         screenTimeVisibilityEnabled = try container.decodeIfPresent(Bool.self, forKey: .screenTimeVisibilityEnabled) ?? true
+        currentStreak = try container.decodeIfPresent(Int.self, forKey: .currentStreak) ?? 0
+        longestStreak = try container.decodeIfPresent(Int.self, forKey: .longestStreak) ?? 0
+        lastActiveDate = try container.decodeIfPresent(Date.self, forKey: .lastActiveDate)
         selectedTitle = try container.decodeIfPresent(String.self, forKey: .selectedTitle)
         selectedFrame = try container.decodeIfPresent(String.self, forKey: .selectedFrame)
         unlockedCosmetics = try container.decodeIfPresent([String].self, forKey: .unlockedCosmetics) ?? []
@@ -83,9 +94,11 @@ struct User: Identifiable, Codable {
         displayName: String,
         photoURL: String? = nil,
         major: String? = nil,
+        dorm: String? = nil,
         year: String? = nil,
         spotifyPlaylistURL: String? = nil,
         studyTools: [String] = [],
+        primaryStudyTools: [String] = [],
         tips: String? = nil,
         totalFocusedSeconds: Int = 0,
         points: Int = 0,
@@ -93,6 +106,9 @@ struct User: Identifiable, Codable {
         dailyNonProductiveMinutes: Int = 0,
         screenTimeUpdatedAt: Date? = nil,
         screenTimeVisibilityEnabled: Bool = true,
+        currentStreak: Int = 0,
+        longestStreak: Int = 0,
+        lastActiveDate: Date? = nil,
         selectedTitle: String? = nil,
         selectedFrame: String? = nil,
         unlockedCosmetics: [String] = [],
@@ -104,9 +120,11 @@ struct User: Identifiable, Codable {
         self.displayName = displayName
         self.photoURL = photoURL
         self.major = major
+        self.dorm = dorm
         self.year = year
         self.spotifyPlaylistURL = spotifyPlaylistURL
         self.studyTools = studyTools
+        self.primaryStudyTools = primaryStudyTools
         self.tips = tips
         self.totalFocusedSeconds = totalFocusedSeconds
         self.points = points
@@ -114,6 +132,9 @@ struct User: Identifiable, Codable {
         self.dailyNonProductiveMinutes = dailyNonProductiveMinutes
         self.screenTimeUpdatedAt = screenTimeUpdatedAt
         self.screenTimeVisibilityEnabled = screenTimeVisibilityEnabled
+        self.currentStreak = currentStreak
+        self.longestStreak = longestStreak
+        self.lastActiveDate = lastActiveDate
         self.selectedTitle = selectedTitle
         self.selectedFrame = selectedFrame
         self.unlockedCosmetics = unlockedCosmetics
@@ -133,15 +154,20 @@ extension User {
             email: "test@nd.edu",
             displayName: "Test User",
             major: "Computer Science",
+            dorm: "Dillon Hall",
             year: "Junior",
             studyTools: ["Notion", "Anki", "Quizlet"],
+            primaryStudyTools: ["Notion", "Anki"],
             tips: "I find that studying in Hesburgh Library helps me focus better.",
             totalFocusedSeconds: 36000,
             points: 8500,
             dailyProductiveMinutes: 210,
             dailyNonProductiveMinutes: 95,
             screenTimeUpdatedAt: Date(),
-            screenTimeVisibilityEnabled: true
+            screenTimeVisibilityEnabled: true,
+            currentStreak: 7,
+            longestStreak: 14,
+            lastActiveDate: Date()
         )
     }
 }

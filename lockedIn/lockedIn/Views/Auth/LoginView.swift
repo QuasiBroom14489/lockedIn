@@ -1,98 +1,32 @@
 import SwiftUI
 
 struct LoginView: View {
-    @StateObject private var viewModel = AuthViewModel()
-    @State private var showSignUp = false
-    @State private var showForgotPassword = false
+    @EnvironmentObject private var viewModel: AuthViewModel
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(spacing: 32) {
-                    // Logo and Title
-                    VStack(spacing: 16) {
-                        Image(systemName: "lock.circle.fill")
-                            .font(.system(size: 80))
-                            .foregroundColor(AppColors.gold)
-                            .goldGlow(radius: 12, opacity: 0.4)
+            VStack(spacing: 20) {
+                Spacer(minLength: 30)
 
-                        Text("lockedIn")
-                            .font(AppFonts.title())
-                            .foregroundColor(AppColors.gold)
+                authHeader
 
-                        // Clover accent
-                        Text("☘")
-                            .font(.system(size: 16))
-                            .foregroundColor(AppColors.goldMuted)
-
-                        Text("Focus. Compete. Succeed.")
-                            .font(AppFonts.body())
-                            .foregroundColor(AppColors.textSecondary)
-                    }
-                    .padding(.top, 40)
-
-                    // Login Form
-                    VStack(spacing: 16) {
-                        TextField("Email", text: $viewModel.email)
-                            .textFieldStyle(RoundedTextFieldStyle())
-                            .textContentType(.emailAddress)
-                            .keyboardType(.emailAddress)
-                            .autocapitalization(.none)
-
-                        SecureField("Password", text: $viewModel.password)
-                            .textFieldStyle(RoundedTextFieldStyle())
-                            .textContentType(.password)
-
-                        Button {
-                            showForgotPassword = true
-                        } label: {
-                            Text("Forgot Password?")
-                                .font(AppFonts.caption())
-                                .foregroundColor(AppColors.gold)
-                        }
-                        .frame(maxWidth: .infinity, alignment: .trailing)
-                    }
-                    .padding(.horizontal)
-
-                    // Login Button
-                    Button {
-                        Task {
-                            await viewModel.signIn()
-                        }
-                    } label: {
-                        if viewModel.isLoading {
-                            ProgressView()
-                                .tint(.white)
-                        } else {
-                            Text("Sign In")
-                        }
-                    }
-                    .primaryButtonStyle()
-                    .disabled(viewModel.isLoading || !viewModel.isSignInFormValid)
-                    .padding(.horizontal)
-
-                    // Sign Up Link
-                    HStack {
-                        Text("Don't have an account?")
-                            .foregroundColor(AppColors.textSecondary)
-
-                        Button("Sign Up") {
-                            showSignUp = true
-                        }
-                        .foregroundColor(AppColors.gold)
-                        .fontWeight(.semibold)
-                    }
-                    .font(AppFonts.body())
+                if let banner = viewModel.authBannerMessage, !banner.isEmpty {
+                    infoBanner(text: banner)
+                        .padding(.horizontal, 20)
                 }
-                .padding(.bottom, 32)
+
+                googleCard
+                    .padding(.horizontal, 20)
+
+                Text("Only @nd.edu Google accounts can access lockedIn.")
+                    .font(AppFonts.caption())
+                    .foregroundColor(AppColors.textTertiary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 30)
+
+                Spacer()
             }
-            .background(AppColors.background)
-            .navigationDestination(isPresented: $showSignUp) {
-                SignUpView(viewModel: viewModel)
-            }
-            .sheet(isPresented: $showForgotPassword) {
-                ForgotPasswordView(viewModel: viewModel)
-            }
+            .background(authBackground)
             .alert("Error", isPresented: $viewModel.showError) {
                 Button("OK", role: .cancel) {}
             } message: {
@@ -100,87 +34,96 @@ struct LoginView: View {
             }
         }
     }
-}
 
-// MARK: - Forgot Password Sheet
+    private var authHeader: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "lock.shield.fill")
+                .font(.system(size: 58, weight: .semibold))
+                .foregroundColor(AppColors.gold)
+                .goldGlow(radius: 12, opacity: 0.35)
 
-struct ForgotPasswordView: View {
-    @ObservedObject var viewModel: AuthViewModel
-    @Environment(\.dismiss) private var dismiss
-    @State private var emailSent = false
+            Text("Welcome to lockedIn")
+                .font(AppFonts.title())
+                .foregroundColor(AppColors.textPrimary)
 
-    var body: some View {
-        NavigationStack {
-            VStack(spacing: 24) {
-                Text("Enter your email address and we'll send you a link to reset your password.")
-                    .font(AppFonts.body())
-                    .foregroundColor(AppColors.textSecondary)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal)
-
-                TextField("Email", text: $viewModel.email)
-                    .textFieldStyle(RoundedTextFieldStyle())
-                    .textContentType(.emailAddress)
-                    .keyboardType(.emailAddress)
-                    .autocapitalization(.none)
-                    .padding(.horizontal)
-
-                Button {
-                    Task {
-                        await viewModel.resetPassword()
-                        emailSent = true
-                    }
-                } label: {
-                    if viewModel.isLoading {
-                        ProgressView()
-                            .tint(.white)
-                    } else {
-                        Text("Send Reset Link")
-                    }
-                }
-                .primaryButtonStyle()
-                .disabled(viewModel.isLoading || !viewModel.email.isValidEmail)
-                .padding(.horizontal)
-
-                Spacer()
-            }
-            .padding(.top, 24)
-            .navigationTitle("Reset Password")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
-                        dismiss()
-                    }
-                }
-            }
-            .alert("Email Sent", isPresented: $emailSent) {
-                Button("OK") {
-                    dismiss()
-                }
-            } message: {
-                Text("Check your inbox for password reset instructions.")
-            }
+            Text("Create account or sign in with your Notre Dame Google account")
+                .font(AppFonts.caption())
+                .foregroundColor(AppColors.textSecondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 24)
         }
     }
-}
 
-// MARK: - Custom Text Field Style
+    private var googleCard: some View {
+        VStack(spacing: 12) {
+            Button {
+                Task { await viewModel.signInWithGoogle() }
+            } label: {
+                HStack(spacing: 10) {
+                    Text("G")
+                        .font(.system(size: 14, weight: .bold, design: .rounded))
+                        .foregroundColor(AppColors.background)
+                        .frame(width: 24, height: 24)
+                        .background(Circle().fill(AppColors.textPrimary))
 
-struct RoundedTextFieldStyle: TextFieldStyle {
-    func _body(configuration: TextField<Self._Label>) -> some View {
-        configuration
-            .padding()
-            .background(AppColors.surface)
-            .foregroundColor(AppColors.textPrimary)
-            .cornerRadius(Constants.UI.cornerRadius)
-            .overlay(
-                RoundedRectangle(cornerRadius: Constants.UI.cornerRadius)
-                    .stroke(AppColors.border, lineWidth: 1)
-            )
+                    if viewModel.isGoogleLoading {
+                        ProgressView()
+                            .tint(AppColors.textPrimary)
+                    } else {
+                        Text("Create Account / Sign In with Google")
+                            .font(.headline)
+                    }
+                }
+                .foregroundColor(AppColors.textPrimary)
+                .frame(maxWidth: .infinity)
+                .frame(height: Constants.UI.buttonHeight)
+                .background(AppColors.surfaceElevated)
+                .cornerRadius(Constants.UI.cornerRadius)
+                .overlay(
+                    RoundedRectangle(cornerRadius: Constants.UI.cornerRadius)
+                        .stroke(AppColors.border, lineWidth: 1)
+                )
+            }
+            .disabled(viewModel.isGoogleLoading || viewModel.isLoading)
+
+            Text("@nd.edu only")
+                .font(AppFonts.caption())
+                .foregroundColor(AppColors.gold)
+        }
+        .padding(18)
+        .focusCardStyle()
+    }
+
+    private var authBackground: some View {
+        LinearGradient(
+            colors: [AppColors.background, AppColors.backgroundSecondary],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+        .ignoresSafeArea()
+        .ambientBackgroundLayer()
+    }
+
+    private func infoBanner(text: String) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: "info.circle.fill")
+                .foregroundColor(AppColors.gold)
+            Text(text)
+                .font(AppFonts.caption())
+                .foregroundColor(AppColors.textPrimary)
+            Spacer(minLength: 0)
+        }
+        .padding(12)
+        .background(AppColors.surfaceElevated.opacity(0.88))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(AppColors.gold.opacity(0.35), lineWidth: 1)
+        )
+        .cornerRadius(12)
     }
 }
 
 #Preview {
     LoginView()
+        .environmentObject(AuthViewModel())
 }

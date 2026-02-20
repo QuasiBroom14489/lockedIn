@@ -2,6 +2,8 @@ import SwiftUI
 import UIKit
 
 struct StudyFeedView: View {
+    let selectedTab: Int
+
     @StateObject private var viewModel = StudyFeedViewModel()
     @State private var selectedAuthorId: String?
     @State private var showingComposer = false
@@ -16,8 +18,7 @@ struct StudyFeedView: View {
                     .ignoresSafeArea()
 
                 if viewModel.isLoading && viewModel.posts.isEmpty {
-                    ProgressView()
-                        .tint(AppColors.gold)
+                    feedSkeleton
                 } else if viewModel.posts.isEmpty {
                     emptyState
                 } else {
@@ -25,6 +26,8 @@ struct StudyFeedView: View {
                 }
             }
             .navigationTitle("Study Feed")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar(.visible, for: .navigationBar)
             .toolbarBackground(AppColors.background, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
             .toolbar {
@@ -43,6 +46,12 @@ struct StudyFeedView: View {
             .task {
                 await viewModel.loadInitialFeed()
             }
+            .onChange(of: selectedTab) { _, newValue in
+                guard newValue == 2 else { return }
+                Task {
+                    await viewModel.refreshFeed()
+                }
+            }
             .alert("Error", isPresented: $viewModel.showError) {
                 Button("OK", role: .cancel) {}
             } message: {
@@ -59,9 +68,8 @@ struct StudyFeedView: View {
 
     private var feedContent: some View {
         ScrollView {
-            VStack(spacing: 12) {
-                sortPicker
-                postTypeFilterChips
+            VStack(spacing: 14) {
+                feedControls
 
                 PostsListView(
                     posts: viewModel.posts,
@@ -106,6 +114,22 @@ struct StudyFeedView: View {
         }
     }
 
+    private var feedControls: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            sortPicker
+            postTypeFilterChips
+        }
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: 14)
+                .fill(AppColors.surface.opacity(0.75))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 14)
+                .stroke(AppColors.borderSubtle, lineWidth: 1)
+        )
+    }
+
     private var sortPicker: some View {
         Picker("Sort", selection: $viewModel.sortOption) {
             ForEach(StudyFeedSortOption.allCases, id: \.self) { option in
@@ -122,16 +146,16 @@ struct StudyFeedView: View {
 
     private var postTypeFilterChips: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
+            HStack(spacing: 10) {
                 ForEach(StudyFeedPostFilter.allCases, id: \.self) { filter in
                     let isSelected = viewModel.postFilter == filter
                     Button {
                         Task { await viewModel.setPostFilter(filter) }
                     } label: {
                         Text(filter.displayName)
-                            .font(.caption)
+                            .font(.caption.weight(.semibold))
                             .foregroundColor(isSelected ? AppColors.background : AppColors.textSecondary)
-                            .padding(.horizontal, 10)
+                            .padding(.horizontal, 12)
                             .padding(.vertical, 6)
                             .background(
                                 Capsule()
@@ -146,9 +170,9 @@ struct StudyFeedView: View {
 
     private var emptyState: some View {
         VStack(spacing: 16) {
-            Text("☘")
-                .font(.system(size: 44))
-                .foregroundColor(AppColors.greenMuted)
+            Image(systemName: "rectangle.stack.fill.badge.plus")
+                .font(.system(size: 38))
+                .foregroundColor(AppColors.goldMuted)
 
             Text("No Study Posts Yet")
                 .font(AppFonts.headline())
@@ -160,11 +184,39 @@ struct StudyFeedView: View {
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 28)
 
-            Button("Share Your First Post") {
+            Button("Create Post") {
                 showingComposer = true
             }
             .primaryButtonStyle()
             .padding(.horizontal, 28)
+        }
+    }
+
+    private var feedSkeleton: some View {
+        ScrollView {
+            VStack(spacing: 14) {
+                RoundedRectangle(cornerRadius: 14)
+                    .fill(AppColors.surface.opacity(0.7))
+                    .frame(height: 88)
+
+                ForEach(0..<3, id: \.self) { _ in
+                    RoundedRectangle(cornerRadius: Constants.UI.postCardCornerRadius)
+                        .fill(
+                            LinearGradient(
+                                colors: [AppColors.surfaceElevated.opacity(0.9), AppColors.surface.opacity(0.85)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .frame(height: 220)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: Constants.UI.postCardCornerRadius)
+                                .stroke(AppColors.borderSubtle, lineWidth: 1)
+                        )
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
         }
     }
 
@@ -188,5 +240,5 @@ private struct ShareSheet: UIViewControllerRepresentable {
 }
 
 #Preview {
-    StudyFeedView()
+    StudyFeedView(selectedTab: 2)
 }

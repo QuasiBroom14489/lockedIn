@@ -20,6 +20,10 @@ class FocusViewModel: ObservableObject {
 
     @Published var completedSessionDuration: Int = 0
     @Published var currentTip: String = Constants.Session.focusTips.first ?? "Stay focused."
+    @Published var audioState: FocusAudioState = .disconnected
+    @Published var showMusicControls = true
+    @Published var musicWarningMessage: String?
+    @Published var isMusicConnecting = false
 
     // MARK: - Services
 
@@ -28,6 +32,7 @@ class FocusViewModel: ObservableObject {
     private let authService = AuthService.shared
     private let notificationService = NotificationService.shared
     private let analyticsService = AnalyticsService.shared
+    private let musicService: MusicPlaybackService
 
     // MARK: - Private Properties
 
@@ -57,7 +62,13 @@ class FocusViewModel: ObservableObject {
 
     // MARK: - Initialization
 
-    init() {
+    init(musicService: MusicPlaybackService = SpotifyPlaybackService.shared) {
+        self.musicService = musicService
+        self.musicService.onStateChange = { [weak self] state in
+            Task { @MainActor in
+                self?.audioState = state
+            }
+        }
         setupLifecycleMonitoring()
     }
 
@@ -107,6 +118,7 @@ class FocusViewModel: ObservableObject {
 
         startTimer()
         startTipRotation()
+        await connectMusicIfNeeded()
 
         analyticsService.logFocusSessionStarted(durationGoal: selectedDurationMinutes * 60)
     }
@@ -129,6 +141,8 @@ class FocusViewModel: ObservableObject {
         stopTimer()
         stopTipRotation()
         screenTimeService.stopBlocking()
+        musicService.disconnect()
+        audioState = .disconnected
 
         guard let session = currentSession,
               let userId = authService.currentUserId else {
@@ -245,6 +259,7 @@ class FocusViewModel: ObservableObject {
         currentTipIndex = (currentTipIndex + 1) % Constants.Session.focusTips.count
         currentTip = Constants.Session.focusTips[currentTipIndex]
         analyticsService.logFocusTipDisplayed(tipIndex: currentTipIndex)
+        analyticsService.logFocusTipTransitionRendered()
     }
 
     @objc private func tipTimerFired(_ timer: Timer) {
@@ -326,5 +341,96 @@ class FocusViewModel: ObservableObject {
     private func showError(message: String) {
         errorMessage = message
         showError = true
+    }
+
+    // MARK: - Music Controls
+
+    func connectMusicIfNeeded() async {
+        guard isSessionActive, showMusicControls else { return }
+
+        isMusicConnecting = true
+        musicWarningMessage = nil
+        analyticsService.logFocusMusicConnectStarted()
+
+        do {
+            try await musicService.connect()
+            await musicService.refreshState()
+            analyticsService.logFocusMusicConnectSucceeded()
+        } catch {
+            let message = error.localizedDescription
+            musicWarningMessage = message
+            analyticsService.logFocusMusicConnectFailed(message: message)
+        }
+
+        isMusicConnecting = false
+    }
+
+    func togglePlayPause() async {
+        do {
+            analyticsService.logFocusMusicControlTap(action: "play_pause")
+            try await musicService.playPause()
+            await musicService.refreshState()
+        } catch {
+            musicWarningMessage = error.localizedDescription
+        }
+    }
+
+    func skipNext() async {
+        do {
+            analyticsService.logFocusMusicControlTap(action: "next")
+            try await musicService.nextTrack()
+            await musicService.refreshState()
+        } catch {
+            musicWarningMessage = error.localizedDescription
+        }
+    }
+
+    func skipPrevious() async {
+        do {
+            analyticsService.logFocusMusicControlTap(action: "previous")
+            try await musicService.previousTrack()
+            await musicService.refreshState()
+        } catch {
+            musicWarningMessage = error.localizedDescription
+        }
+    }
+
+    func updateVolume(_ value: Double) async {
+        do {
+            analyticsService.logFocusMusicControlTap(action: "volume")
+            try await musicService.setVolume(value)
+            await musicService.refreshState()
+        } catch {
+            musicWarningMessage = error.localizedDescription
+        }
+    }
+
+    func seekForward() async {
+        do {
+            analyticsService.logFocusMusicControlTap(action: "seek")
+            try await musicService.seekForward()
+            await musicService.refreshState()
+        } catch {
+            handleBlockedExternalMusicAction(action: "seek", message: error.localizedDescription)
+        }
+    }
+
+    func openQueue() async {
+        do {
+            analyticsService.logFocusMusicControlTap(action: "queue")
+            try await musicService.openQueue()
+            await musicService.refreshState()
+        } catch {
+            handleBlockedExternalMusicAction(action: "queue", message: error.localizedDescription)
+        }
+    }
+
+    func clearMusicWarning() {
+        musicWarningMessage = nil
+    }
+
+    func handleBlockedExternalMusicAction(action: String, message: String = "This action would leave lockedIn and break focus. Use in-app controls only.") {
+        musicWarningMessage = message
+        analyticsService.logFocusMusicActionBlockedExternal(action: action)
     }
 }

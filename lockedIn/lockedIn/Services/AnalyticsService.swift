@@ -6,6 +6,26 @@ final class AnalyticsService {
 
     private init() {}
 
+    // MARK: - Auth Events
+
+    func logAuthGoogleRejectedNonND() {
+        Analytics.logEvent("auth_google_rejected_non_nd", parameters: nil)
+    }
+
+    func logAuthGoogleSigninStarted() {
+        Analytics.logEvent("auth_google_signin_started", parameters: nil)
+    }
+
+    func logAuthGoogleSigninSucceeded() {
+        Analytics.logEvent("auth_google_signin_succeeded", parameters: nil)
+    }
+
+    func logAuthGoogleSigninFailed(reason: String) {
+        Analytics.logEvent("auth_google_signin_failed", parameters: [
+            "reason": reason
+        ])
+    }
+
     // MARK: - Focus Session Events
 
     func logFocusSessionStarted(durationGoal: Int) {
@@ -30,6 +50,38 @@ final class AnalyticsService {
     func logFocusTipDisplayed(tipIndex: Int) {
         Analytics.logEvent("focus_tip_displayed", parameters: [
             "tip_index": tipIndex
+        ])
+    }
+
+    func logFocusTipTransitionRendered() {
+        Analytics.logEvent("focus_tip_transition_rendered", parameters: nil)
+    }
+
+    // MARK: - Focus Music Events
+
+    func logFocusMusicConnectStarted() {
+        Analytics.logEvent("focus_music_connect_started", parameters: nil)
+    }
+
+    func logFocusMusicConnectSucceeded() {
+        Analytics.logEvent("focus_music_connect_succeeded", parameters: nil)
+    }
+
+    func logFocusMusicConnectFailed(message: String) {
+        Analytics.logEvent("focus_music_connect_failed", parameters: [
+            "message": message
+        ])
+    }
+
+    func logFocusMusicControlTap(action: String) {
+        Analytics.logEvent("focus_music_control_tap", parameters: [
+            "action": action
+        ])
+    }
+
+    func logFocusMusicActionBlockedExternal(action: String) {
+        Analytics.logEvent("focus_music_action_blocked_external", parameters: [
+            "action": action
         ])
     }
 

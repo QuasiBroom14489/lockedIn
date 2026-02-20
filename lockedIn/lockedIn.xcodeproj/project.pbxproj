@@ -11,8 +11,11 @@
 		EDECC4DC2F45825A001FE739 /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = EDECC4DB2F45825A001FE739 /* FirebaseAuth */; };
 		EDECC4DE2F458263001FE739 /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = EDECC4DD2F458263001FE739 /* FirebaseFirestore */; };
 		EDECC4E02F458274001FE739 /* FirebaseCore in Frameworks */ = {isa = PBXBuildFile; productRef = EDECC4DF2F458274001FE739 /* FirebaseCore */; };
-		EDECC4E22F45834A001FE739 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = EDECC4E12F45834A001FE739 /* GoogleService-Info.plist */; };
 		EDECC5092F46D278001FE739 /* FirebaseAnalytics in Frameworks */ = {isa = PBXBuildFile; productRef = EDECC5082F46D278001FE739 /* FirebaseAnalytics */; };
+		EDECC5472F4762C7001FE739 /* SpotifyiOS in Frameworks */ = {isa = PBXBuildFile; productRef = EDECC5462F4762C7001FE739 /* SpotifyiOS */; };
+		EDECC55B2F477123001FE739 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = EDECC55A2F477123001FE739 /* GoogleService-Info.plist */; };
+		EDECC55E2F4772D8001FE739 /* GoogleSignIn in Frameworks */ = {isa = PBXBuildFile; productRef = EDECC55D2F4772D8001FE739 /* GoogleSignIn */; };
+		EDECC5602F4772D8001FE739 /* GoogleSignInSwift in Frameworks */ = {isa = PBXBuildFile; productRef = EDECC55F2F4772D8001FE739 /* GoogleSignInSwift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -27,8 +30,8 @@
 
 /* Begin PBXFileReference section */
 		EDECC43E2F45705B001FE739 /* lockedIn.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = lockedIn.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		EDECC4E12F45834A001FE739 /* GoogleService-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
 		EDECC5182F46D4CD001FE739 /* lockedInTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = lockedInTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		EDECC55A2F477123001FE739 /* GoogleService-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -63,10 +66,13 @@
 			buildActionMask = 2147483647;
 			files = (
 				EDECC4DA2F458253001FE739 /* FirebaseStorage in Frameworks */,
+				EDECC5472F4762C7001FE739 /* SpotifyiOS in Frameworks */,
 				EDECC4DC2F45825A001FE739 /* FirebaseAuth in Frameworks */,
+				EDECC5602F4772D8001FE739 /* GoogleSignInSwift in Frameworks */,
 				EDECC4E02F458274001FE739 /* FirebaseCore in Frameworks */,
 				EDECC5092F46D278001FE739 /* FirebaseAnalytics in Frameworks */,
 				EDECC4DE2F458263001FE739 /* FirebaseFirestore in Frameworks */,
+				EDECC55E2F4772D8001FE739 /* GoogleSignIn in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -83,7 +89,7 @@
 		EDECC4352F45705B001FE739 = {
 			isa = PBXGroup;
 			children = (
-				EDECC4E12F45834A001FE739 /* GoogleService-Info.plist */,
+				EDECC55A2F477123001FE739 /* GoogleService-Info.plist */,
 				EDECC4402F45705B001FE739 /* lockedIn */,
 				EDECC5192F46D4CD001FE739 /* lockedInTests */,
 				EDECC4D82F458253001FE739 /* Frameworks */,
@@ -132,6 +138,9 @@
 				EDECC4DD2F458263001FE739 /* FirebaseFirestore */,
 				EDECC4DF2F458274001FE739 /* FirebaseCore */,
 				EDECC5082F46D278001FE739 /* FirebaseAnalytics */,
+				EDECC5462F4762C7001FE739 /* SpotifyiOS */,
+				EDECC55D2F4772D8001FE739 /* GoogleSignIn */,
+				EDECC55F2F4772D8001FE739 /* GoogleSignInSwift */,
 			);
 			productName = lockedIn;
 			productReference = EDECC43E2F45705B001FE739 /* lockedIn.app */;
@@ -190,6 +199,8 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				EDECC4512F4570C7001FE739 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */,
+				EDECC5352F46EF36001FE739 /* XCRemoteSwiftPackageReference "ios-sdk" */,
+				EDECC55C2F4772B6001FE739 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = EDECC43F2F45705B001FE739 /* Products */;
@@ -207,7 +218,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				EDECC4E22F45834A001FE739 /* GoogleService-Info.plist in Resources */,
+				EDECC55B2F477123001FE739 /* GoogleService-Info.plist in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -259,6 +270,7 @@
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = lockedIn/Info.plist;
+				INFOPLIST_KEY_NSCameraUsageDescription = "lockedIn uses the camera only when you choose to capture a profile photo.";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
@@ -303,6 +315,7 @@
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = lockedIn/Info.plist;
+				INFOPLIST_KEY_NSCameraUsageDescription = "lockedIn uses the camera only when you choose to capture a profile photo.";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
@@ -536,6 +549,22 @@
 				minimumVersion = 12.9.0;
 			};
 		};
+		EDECC5352F46EF36001FE739 /* XCRemoteSwiftPackageReference "ios-sdk" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/spotify/ios-sdk";
+			requirement = {
+				branch = master;
+				kind = branch;
+			};
+		};
+		EDECC55C2F4772B6001FE739 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/google/GoogleSignIn-iOS";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 9.1.0;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -563,6 +592,21 @@
 			isa = XCSwiftPackageProductDependency;
 			package = EDECC4512F4570C7001FE739 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
 			productName = FirebaseAnalytics;
+		};
+		EDECC5462F4762C7001FE739 /* SpotifyiOS */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = EDECC5352F46EF36001FE739 /* XCRemoteSwiftPackageReference "ios-sdk" */;
+			productName = SpotifyiOS;
+		};
+		EDECC55D2F4772D8001FE739 /* GoogleSignIn */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = EDECC55C2F4772B6001FE739 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */;
+			productName = GoogleSignIn;
+		};
+		EDECC55F2F4772D8001FE739 /* GoogleSignInSwift */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = EDECC55C2F4772B6001FE739 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */;
+			productName = GoogleSignInSwift;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

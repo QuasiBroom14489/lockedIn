@@ -12,7 +12,7 @@ struct PostsListView: View {
     var onPostAppear: (StudyPost) -> Void = { _ in }
 
     var body: some View {
-        LazyVStack(spacing: 12) {
+        LazyVStack(spacing: 14) {
             ForEach(posts) { post in
                 StudyPostRow(
                     post: post,

@@ -82,8 +82,7 @@ class StudyFeedViewModel: ObservableObject {
     }
 
     func setSortOption(_ option: StudyFeedSortOption) async {
-        guard sortOption != option else { return }
-        sortOption = option
+        // Value already set by Picker binding, just rebuild
         rebuildFeedPages()
         await loadInteractionState(for: posts)
     }
@@ -297,7 +296,8 @@ class StudyFeedViewModel: ObservableObject {
         content: String,
         stackItems: [StudyStackItem]? = nil,
         tools: [String],
-        tags: [String]
+        tags: [String],
+        classKeys: [String] = []
     ) async {
         guard let currentUserId = authService.currentUserId else {
             showError(message: "You must be signed in to create a post.")
@@ -308,6 +308,24 @@ class StudyFeedViewModel: ObservableObject {
         defer { isSubmittingPost = false }
 
         do {
+            for classKey in classKeys.map({ GlobalClass.normalizedId(from: $0) }).filter(\.isNotEmpty) {
+                try await firebaseService.joinClass(userId: currentUserId, classId: classKey)
+            }
+
+            let uniqueTools = Set(
+                (stackItems?.map(\.toolName) ?? tools)
+                    .map(\.trimmed)
+                    .filter(\.isNotEmpty)
+            )
+            for toolName in uniqueTools {
+                let canonicalTool = try await firebaseService.createGlobalToolIfNeeded(
+                    displayName: toolName,
+                    category: nil,
+                    createdByUserId: currentUserId
+                )
+                try await firebaseService.incrementToolUsage(toolId: canonicalTool.id)
+            }
+
             let user = try await firebaseService.getUser(id: currentUserId)
             let newPost = StudyPost(
                 authorId: currentUserId,
@@ -318,7 +336,8 @@ class StudyFeedViewModel: ObservableObject {
                 content: content.trimmed,
                 stackItems: stackItems,
                 tools: tools,
-                tags: tags.map(\.trimmed).filter(\.isNotEmpty)
+                tags: tags.map(\.trimmed).filter(\.isNotEmpty),
+                classKeys: classKeys.map { GlobalClass.normalizedId(from: $0) }.filter(\.isNotEmpty)
             )
 
             _ = try await firebaseService.createStudyPost(newPost)

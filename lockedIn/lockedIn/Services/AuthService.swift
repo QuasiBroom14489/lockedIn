@@ -34,43 +34,49 @@ class AuthService: ObservableObject {
         currentUser?.uid
     }
 
-    // MARK: - Sign Up
-
-    func signUp(email: String, password: String, displayName: String) async throws -> User {
-        let result = try await Auth.auth().createUser(withEmail: email, password: password)
-        let firebaseUser = result.user
-
-        let changeRequest = firebaseUser.createProfileChangeRequest()
-        changeRequest.displayName = displayName
-        try await changeRequest.commitChanges()
-
-        let user = User(
-            id: firebaseUser.uid,
-            email: email,
-            displayName: displayName
-        )
-
-        try await FirebaseService.shared.createUser(user)
-
-        return user
+    func isNDEmail(_ email: String) -> Bool {
+        email.trimmed.lowercased().hasSuffix("@nd.edu")
     }
 
-    // MARK: - Sign In
+    func refreshCurrentUser() async throws {
+        guard let user = currentUser else { return }
+        try await user.reload()
+        await MainActor.run {
+            self.currentUser = Auth.auth().currentUser
+        }
+    }
 
-    func signIn(email: String, password: String) async throws {
-        try await Auth.auth().signIn(withEmail: email, password: password)
+    func signInWithGoogle(idToken: String, accessToken: String) async throws {
+        let credential = GoogleAuthProvider.credential(withIDToken: idToken, accessToken: accessToken)
+        let result = try await Auth.auth().signIn(with: credential)
+        guard let email = result.user.email else {
+            try Auth.auth().signOut()
+            throw AuthError.googleAccountMissingEmail
+        }
+
+        if !isNDEmail(email) {
+            try Auth.auth().signOut()
+            throw AuthError.googleNonNDEmailRejected
+        }
+
+        let userDoc = try await FirebaseService.shared.getUser(id: result.user.uid)
+        if userDoc == nil {
+            let displayName = result.user.displayName?.trimmed
+            let fallbackName = displayName?.isEmpty == false ? displayName! : email.components(separatedBy: "@").first ?? "Student"
+            let newUser = User(
+                id: result.user.uid,
+                email: email,
+                displayName: fallbackName,
+                photoURL: result.user.photoURL?.absoluteString
+            )
+            try await FirebaseService.shared.createUser(newUser)
+        }
     }
 
     // MARK: - Sign Out
 
     func signOut() throws {
         try Auth.auth().signOut()
-    }
-
-    // MARK: - Password Reset
-
-    func resetPassword(email: String) async throws {
-        try await Auth.auth().sendPasswordReset(withEmail: email)
     }
 
     // MARK: - Delete Account
@@ -117,6 +123,7 @@ class AuthService: ObservableObject {
         let credential = EmailAuthProvider.credential(withEmail: email, password: password)
         try await user.reauthenticate(with: credential)
     }
+
 }
 
 // MARK: - Errors
@@ -124,8 +131,10 @@ class AuthService: ObservableObject {
 enum AuthError: LocalizedError {
     case notAuthenticated
     case invalidCredentials
-    case emailAlreadyInUse
-    case weakPassword
+    case nonNDEmailNotAllowed
+    case googleSignInUnavailable
+    case googleAccountMissingEmail
+    case googleNonNDEmailRejected
     case unknown(String)
 
     var errorDescription: String? {
@@ -134,10 +143,14 @@ enum AuthError: LocalizedError {
             return "You must be signed in to perform this action"
         case .invalidCredentials:
             return "Invalid email or password"
-        case .emailAlreadyInUse:
-            return "This email is already registered"
-        case .weakPassword:
-            return "Password must be at least 6 characters"
+        case .nonNDEmailNotAllowed:
+            return "Only @nd.edu email addresses can access lockedIn."
+        case .googleSignInUnavailable:
+            return "Google Sign-In is not available on this build."
+        case .googleAccountMissingEmail:
+            return "Google account did not provide an email address."
+        case .googleNonNDEmailRejected:
+            return "Only @nd.edu Google accounts are allowed."
         case .unknown(let message):
             return message
         }

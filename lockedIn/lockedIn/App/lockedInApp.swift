@@ -11,14 +11,41 @@ struct lockedInApp: App {
 
     var body: some Scene {
         WindowGroup {
-            if authViewModel.isAuthenticated {
-                ContentView()
+            Group {
+                if !authViewModel.isAuthenticated {
+                    LoginView()
+                        .environmentObject(authViewModel)
+                        .preferredColorScheme(.dark)
+                } else if authViewModel.requiresOnboarding {
+                    OnboardingFlowView {
+                        Task { @MainActor in
+                            await authViewModel.completeOnboarding()
+                        }
+                    }
                     .environmentObject(authViewModel)
                     .preferredColorScheme(.dark)
-            } else {
-                LoginView()
-                    .environmentObject(authViewModel)
-                    .preferredColorScheme(.dark)
+                } else {
+                    ContentView()
+                        .environmentObject(authViewModel)
+                        .preferredColorScheme(.dark)
+                }
+            }
+            .onOpenURL { url in
+                handleIncomingURL(url)
+            }
+        }
+    }
+
+    private func handleIncomingURL(_ url: URL) {
+        // Handle Google callback
+        if GoogleSignInService.shared.handleIncomingURL(url) {
+            return
+        }
+
+        // Handle Spotify callback
+        if url.scheme == "lockedin" && url.host == "spotify-callback" {
+            Task { @MainActor in
+                _ = SpotifyAuthManager.shared.handleAuthCallback(url: url)
             }
         }
     }

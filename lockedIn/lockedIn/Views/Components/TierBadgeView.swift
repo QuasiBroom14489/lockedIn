@@ -94,26 +94,6 @@ struct TierBadgeView: View {
     }
 }
 
-// MARK: - Inline Tier Title
-
-struct TierTitleView: View {
-    let tier: StatusTier
-    var showIcon: Bool = true
-
-    var body: some View {
-        HStack(spacing: 4) {
-            if showIcon {
-                Text("◆")
-                    .font(.caption2)
-            }
-            Text("\(tier.displayName) \(tier.title)")
-                .font(.caption)
-                .fontWeight(.medium)
-        }
-        .foregroundColor(tier.color)
-    }
-}
-
 // MARK: - Tier Label for Lists
 
 struct TierLabelView: View {
@@ -152,15 +132,6 @@ struct TierLabelView: View {
         }
     }
     .padding()
-}
-
-#Preview("Tier Title") {
-    VStack(spacing: 10) {
-        TierTitleView(tier: .bronze)
-        TierTitleView(tier: .gold)
-        TierTitleView(tier: .diamond)
-        TierTitleView(tier: .obsidian, showIcon: false)
-    }
 }
 
 #Preview("Tier Label") {

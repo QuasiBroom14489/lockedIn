@@ -19,7 +19,7 @@ struct ContentView: View {
                 }
                 .tag(1)
 
-            StudyFeedView()
+            StudyFeedView(selectedTab: selectedTab)
                 .tabItem {
                     Label("Study Feed", systemImage: "book.pages.fill")
                 }

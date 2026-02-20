@@ -1,85 +1,74 @@
 import SwiftUI
+import UIKit
 
 struct SessionCompleteView: View {
     let duration: Int
     let onDismiss: () -> Void
 
-    @State private var showConfetti = true
+    @State private var animateBadge = false
 
     var body: some View {
-        VStack(spacing: 32) {
-            Spacer()
+        ZStack {
+            LinearGradient(
+                colors: [AppColors.background, AppColors.backgroundSecondary],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            .ignoresSafeArea()
+            .ambientBackgroundLayer()
 
-            // Celebration Icon
-            ZStack {
-                Circle()
-                    .fill(AppColors.gold.opacity(0.2))
-                    .frame(width: 120, height: 120)
+            VStack(spacing: 20) {
+                Spacer(minLength: 20)
 
-                Image(systemName: "checkmark.circle.fill")
-                    .font(.system(size: 80))
-                    .foregroundColor(AppColors.gold)
-                    .scaleEffect(showConfetti ? 1 : 0.5)
-                    .animation(.spring(response: 0.5, dampingFraction: 0.6), value: showConfetti)
-            }
+                ZStack {
+                    Circle()
+                        .fill(AppColors.gold.opacity(0.18))
+                        .frame(width: 126, height: 126)
 
-            // Congratulations Text
-            VStack(spacing: 8) {
-                Text("Great Focus Session!")
-                    .font(AppFonts.title())
-                    .foregroundColor(AppColors.navyBlue)
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 82))
+                        .foregroundColor(AppColors.gold)
+                        .scaleEffect(animateBadge ? 1 : 0.82)
+                        .animation(.spring(response: 0.5, dampingFraction: 0.62), value: animateBadge)
+                }
+
+                Text("Great Focus Session")
+                    .font(AppFonts.focusHeader())
+                    .foregroundColor(AppColors.textPrimary)
 
                 Text("You stayed locked in for")
-                    .font(AppFonts.body())
-                    .foregroundColor(.secondary)
-            }
+                    .font(AppFonts.focusBody())
+                    .foregroundColor(AppColors.textSecondary)
 
-            // Duration Display
-            Text(duration.formattedAsDuration)
-                .font(.system(size: 48, weight: .bold, design: .rounded))
-                .foregroundColor(AppColors.navyBlue)
+                Text(duration.formattedAsDuration)
+                    .font(.system(size: 46, weight: .bold, design: .rounded))
+                    .foregroundColor(AppColors.gold)
 
-            // Stats
-            HStack(spacing: 40) {
-                StatDisplay(
-                    value: "\(duration / 60)",
-                    unit: "minutes",
-                    icon: "clock.fill"
-                )
+                HStack(spacing: 18) {
+                    StatDisplay(value: "\(duration / 60)", unit: "minutes", icon: "clock.fill")
+                    StatDisplay(value: "1", unit: "session", icon: "flame.fill")
+                }
 
-                StatDisplay(
-                    value: "1",
-                    unit: "session",
-                    icon: "flame.fill"
-                )
-            }
-            .padding(.top, 16)
-
-            Spacer()
-
-            // Motivational Quote
-            VStack(spacing: 8) {
                 Text(motivationalQuote)
-                    .font(AppFonts.body())
+                    .font(AppFonts.focusBody())
                     .italic()
-                    .foregroundColor(.secondary)
+                    .foregroundColor(AppColors.textSecondary)
                     .multilineTextAlignment(.center)
-                    .padding(.horizontal, 32)
-            }
+                    .padding(.horizontal, 8)
 
-            Spacer()
+                Spacer(minLength: 20)
 
-            // Done Button
-            Button(action: onDismiss) {
-                Text("Done")
+                Button(action: onDismiss) {
+                    Text("Done")
+                }
+                .primaryButtonStyle()
             }
-            .primaryButtonStyle()
-            .padding(.horizontal, 40)
-            .padding(.bottom, 32)
+            .padding(20)
+            .focusCardStyle()
+            .padding(16)
         }
-        .background(Color(.systemGroupedBackground))
         .onAppear {
-            // Haptic feedback
+            animateBadge = true
             let generator = UINotificationFeedbackGenerator()
             generator.notificationOccurred(.success)
         }
@@ -89,7 +78,7 @@ struct SessionCompleteView: View {
         let quotes = [
             "\"The secret of getting ahead is getting started.\" - Mark Twain",
             "\"Focus on being productive instead of busy.\" - Tim Ferriss",
-            "\"It's not that I'm so smart, it's just that I stay with problems longer.\" - Einstein",
+            "\"Stay with the problem long enough and it gives way.\"",
             "\"The successful warrior is the average person with laser-like focus.\" - Bruce Lee",
             "\"Concentrate all your thoughts upon the work at hand.\" - Alexander Graham Bell"
         ]
@@ -107,18 +96,23 @@ struct StatDisplay: View {
     var body: some View {
         VStack(spacing: 8) {
             Image(systemName: icon)
-                .font(.system(size: 24))
+                .font(.system(size: 20))
                 .foregroundColor(AppColors.gold)
 
             Text(value)
-                .font(.title)
-                .fontWeight(.bold)
-                .foregroundColor(AppColors.navyBlue)
+                .font(.title2.weight(.bold))
+                .foregroundColor(AppColors.textPrimary)
 
             Text(unit)
-                .font(AppFonts.caption())
-                .foregroundColor(.secondary)
+                .font(AppFonts.focusCaption())
+                .foregroundColor(AppColors.textSecondary)
         }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 10)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(AppColors.surface.opacity(0.78))
+        )
     }
 }
 

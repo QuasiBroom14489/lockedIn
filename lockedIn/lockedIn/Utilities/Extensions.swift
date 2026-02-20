@@ -41,6 +41,92 @@ extension View {
             )
     }
 
+    func postCardStyle() -> some View {
+        self
+            .padding(16)
+            .background(
+                ZStack {
+                    RoundedRectangle(cornerRadius: Constants.UI.postCardCornerRadius)
+                        .fill(
+                            LinearGradient(
+                                colors: [AppColors.surfaceElevated.opacity(0.92), AppColors.surface.opacity(0.96)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+
+                    RoundedRectangle(cornerRadius: Constants.UI.postCardCornerRadius)
+                        .stroke(
+                            LinearGradient(
+                                colors: [AppColors.gold.opacity(0.24), AppColors.borderSubtle.opacity(0.8)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            ),
+                            lineWidth: 1.1
+                        )
+                }
+            )
+            .shadow(color: AppColors.backgroundSecondary.opacity(0.35), radius: 12, x: 0, y: 6)
+    }
+
+    func modernCapsuleChipStyle(
+        foreground: Color = AppColors.textSecondary,
+        background: Color = AppColors.surfaceElevated
+    ) -> some View {
+        self
+            .font(.caption2)
+            .foregroundColor(foreground)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(
+                Capsule()
+                    .fill(background)
+            )
+    }
+
+    func focusCardStyle() -> some View {
+        self
+            .padding(Constants.UI.focusHeroPadding)
+            .background(
+                RoundedRectangle(cornerRadius: Constants.UI.focusCardCornerRadius)
+                    .fill(
+                        LinearGradient(
+                            colors: [AppColors.surfaceElevated.opacity(0.92), AppColors.surface.opacity(0.95)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: Constants.UI.focusCardCornerRadius)
+                    .stroke(
+                        LinearGradient(
+                            colors: [AppColors.gold.opacity(0.28), AppColors.borderSubtle],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ),
+                        lineWidth: 1
+                    )
+            )
+            .shadow(color: AppColors.backgroundSecondary.opacity(0.4), radius: 16, x: 0, y: 8)
+    }
+
+    func ambientBackgroundLayer() -> some View {
+        self
+            .overlay(alignment: .topLeading) {
+                Circle()
+                    .fill(AppColors.gold.opacity(Constants.UI.focusAmbientOpacity))
+                    .blur(radius: 80)
+                    .offset(x: -40, y: -120)
+            }
+            .overlay(alignment: .bottomTrailing) {
+                Circle()
+                    .fill(AppColors.greenMuted.opacity(Constants.UI.focusAmbientOpacity))
+                    .blur(radius: 90)
+                    .offset(x: 60, y: 120)
+            }
+    }
+
     func goldGlow(radius: CGFloat = 8, opacity: Double = 0.3) -> some View {
         self.shadow(color: AppColors.gold.opacity(opacity), radius: radius, x: 0, y: 0)
     }

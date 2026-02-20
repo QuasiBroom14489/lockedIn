@@ -22,6 +22,16 @@ Stabilization pass is active. Core product features are built; this plan tracks 
 | Leaderboard empty | Eng | In Progress | Validate weekly/friends empty states auto-fallback to All Time on real data |
 | Feed newest-only | Eng | In Progress | Run timestamp backfill and confirm fallback path no longer needed for most docs |
 
+### Google-Only ND Auth
+- [x] Remove email/password sign-up and sign-in flows from app UI
+- [x] Remove email verification gating flow
+- [x] Enforce `@nd.edu` domain during Google sign-in
+- [x] Auto-create user profile doc for first-time ND Google sign-in
+- [x] Add Google auth telemetry for started/succeeded/failed + non-ND rejection
+- [ ] Verify Firebase Auth Google provider + iOS URL scheme config on active project
+- [ ] QA non-`@nd.edu` rejection end-to-end on physical device
+- [ ] QA existing users can re-enter app using Google flow
+
 ---
 
 ## Open Bugs
@@ -81,6 +91,55 @@ Remaining:
 - Add admin-only in-app maintenance action for timestamp backfill status reporting.
 - Add structured telemetry counters for vote/favorite failures by error type.
 - Add lightweight UI test cases for leaderboard fallback banner visibility.
+
+---
+
+## Spotify Integration (Focus Mode Music)
+**Status:** `Pending`
+
+Replace mock `SpotifyPlaybackService` with real Spotify SDK integration. Users can control Spotify playback during focus sessions without leaving the app.
+
+### Prerequisites
+- Spotify Developer account with registered app
+- Spotify Client ID (add to Constants.swift)
+- Spotify iOS SDK already added via SPM
+
+### Implementation Steps
+
+| Step | Task | Status |
+|------|------|--------|
+| 1 | Create `Utilities/KeychainHelper.swift` - secure token storage | Pending |
+| 2 | Create `Services/SpotifyAuthManager.swift` - OAuth flow & token management | Pending |
+| 3 | Update `Info.plist` - add `LSApplicationQueriesSchemes` with "spotify" | Pending |
+| 4 | Add Spotify config to `Utilities/Constants.swift` (clientID, redirectURL, scopes) | Pending |
+| 5 | Rewrite `Services/SpotifyPlaybackService.swift` with real SDK integration | Pending |
+| 6 | Add `.onOpenURL` handler to `App/lockedInApp.swift` for OAuth callback | Pending |
+| 7 | Add Spotify connection card to `Views/Focus/FocusTimerView.swift` | Pending |
+| 8 | Add Spotify section to Settings in `Views/Profile/ProfileView.swift` | Pending |
+
+### Files to Create
+- `Services/SpotifyAuthManager.swift` - OAuth flow & token management
+- `Utilities/KeychainHelper.swift` - Secure token storage
+
+### Files to Modify
+- `Services/SpotifyPlaybackService.swift` - Replace mock with real SDK
+- `App/lockedInApp.swift` - Add URL handler
+- `Views/Focus/FocusTimerView.swift` - Add connection card UI
+- `Views/Profile/ProfileView.swift` - Add settings section
+- `Utilities/Constants.swift` - Add Spotify config
+- `Info.plist` - Add LSApplicationQueriesSchemes
+
+### Verification Checklist
+- [ ] Build succeeds with no errors
+- [ ] "Connect Spotify" on focus page opens Spotify app for auth
+- [ ] OAuth callback returns to lockedIn with connected state
+- [ ] Start focus session shows real Spotify track in mini player
+- [ ] Playback controls (play/pause, skip) work correctly
+- [ ] Volume slider adjusts Spotify volume
+- [ ] End session disconnects Spotify cleanly
+- [ ] App relaunch auto-reconnects with stored token
+- [ ] Disconnect from Settings clears connection state
+- [ ] No Spotify installed shows appropriate error message
 
 ---
 

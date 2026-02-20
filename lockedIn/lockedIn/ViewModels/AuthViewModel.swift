@@ -1,22 +1,23 @@
 import Foundation
 import Combine
+import FirebaseAuth
 
 @MainActor
 class AuthViewModel: ObservableObject {
-    @Published var email = ""
-    @Published var password = ""
-    @Published var confirmPassword = ""
-    @Published var displayName = ""
-
     @Published var isLoading = false
     @Published var errorMessage: String?
     @Published var showError = false
 
     @Published var isAuthenticated = false
     @Published var currentUser: User?
+    @Published var requiresOnboarding = false
+    @Published var authBannerMessage: String?
+    @Published var isGoogleLoading = false
 
     private let authService = AuthService.shared
     private let firebaseService = FirebaseService.shared
+    private let googleSignInService = GoogleSignInService.shared
+    private let analyticsService = AnalyticsService.shared
     private var cancellables = Set<AnyCancellable>()
 
     init() {
@@ -25,138 +26,108 @@ class AuthViewModel: ObservableObject {
 
     private func setupBindings() {
         authService.$isAuthenticated
+            .removeDuplicates()
             .receive(on: DispatchQueue.main)
             .sink { [weak self] isAuth in
                 self?.isAuthenticated = isAuth
                 if isAuth {
-                    Task {
-                        await self?.loadCurrentUser()
-                    }
+                    Task { await self?.loadCurrentUser() }
                 } else {
                     self?.currentUser = nil
+                    self?.requiresOnboarding = false
+                    self?.authBannerMessage = nil
                 }
             }
             .store(in: &cancellables)
     }
 
-    private func loadCurrentUser() async {
+    func loadCurrentUser() async {
         guard let userId = authService.currentUserId else { return }
 
         do {
             currentUser = try await firebaseService.getUser(id: userId)
+            requiresOnboarding = userNeedsOnboarding(currentUser)
         } catch {
             handleError(error)
         }
     }
-
-    // MARK: - Validation
-
-    var isSignUpFormValid: Bool {
-        email.isValidEmail &&
-        password.count >= 6 &&
-        password == confirmPassword &&
-        displayName.isNotEmpty
-    }
-
-    var isSignInFormValid: Bool {
-        email.isValidEmail && password.isNotEmpty
-    }
-
-    // MARK: - Sign Up
-
-    func signUp() async {
-        guard isSignUpFormValid else {
-            showError(message: "Please fill in all fields correctly")
-            return
-        }
-
-        isLoading = true
-        errorMessage = nil
-
-        do {
-            let user = try await authService.signUp(
-                email: email.trimmed,
-                password: password,
-                displayName: displayName.trimmed
-            )
-            currentUser = user
-            clearForm()
-        } catch {
-            handleError(error)
-        }
-
-        isLoading = false
-    }
-
-    // MARK: - Sign In
-
-    func signIn() async {
-        guard isSignInFormValid else {
-            showError(message: "Please enter a valid email and password")
-            return
-        }
-
-        isLoading = true
-        errorMessage = nil
-
-        do {
-            try await authService.signIn(email: email.trimmed, password: password)
-            clearForm()
-        } catch {
-            handleError(error)
-        }
-
-        isLoading = false
-    }
-
-    // MARK: - Sign Out
 
     func signOut() {
         do {
             try authService.signOut()
-            clearForm()
             currentUser = nil
+            requiresOnboarding = false
+            authBannerMessage = nil
         } catch {
             handleError(error)
         }
     }
 
-    // MARK: - Password Reset
-
-    func resetPassword() async {
-        guard email.isValidEmail else {
-            showError(message: "Please enter a valid email address")
-            return
-        }
-
-        isLoading = true
+    func signInWithGoogle() async {
+        isGoogleLoading = true
+        authBannerMessage = nil
+        analyticsService.logAuthGoogleSigninStarted()
+        defer { isGoogleLoading = false }
 
         do {
-            try await authService.resetPassword(email: email.trimmed)
-            showError(message: "Password reset email sent. Check your inbox.")
+            let tokens = try await googleSignInService.signIn()
+            try await authService.signInWithGoogle(idToken: tokens.idToken, accessToken: tokens.accessToken)
+            try await authService.refreshCurrentUser()
+
+            guard let signedInEmail = authService.currentUser?.email,
+                  authService.isNDEmail(signedInEmail)
+            else {
+                try? authService.signOut()
+                throw AuthError.googleNonNDEmailRejected
+            }
+
+            await loadCurrentUser()
+            analyticsService.logAuthGoogleSigninSucceeded()
+            authBannerMessage = nil
+        } catch AuthError.googleNonNDEmailRejected {
+            analyticsService.logAuthGoogleRejectedNonND()
+            analyticsService.logAuthGoogleSigninFailed(reason: AuthError.googleNonNDEmailRejected.localizedDescription)
+            handleError(AuthError.googleNonNDEmailRejected)
         } catch {
+            analyticsService.logAuthGoogleSigninFailed(reason: error.localizedDescription)
             handleError(error)
         }
-
-        isLoading = false
-    }
-
-    // MARK: - Helpers
-
-    private func clearForm() {
-        email = ""
-        password = ""
-        confirmPassword = ""
-        displayName = ""
     }
 
     private func handleError(_ error: Error) {
-        errorMessage = error.localizedDescription
+        errorMessage = mapErrorMessage(error)
         showError = true
     }
 
-    private func showError(message: String) {
-        errorMessage = message
-        showError = true
+    func completeOnboarding() async {
+        await loadCurrentUser()
+        requiresOnboarding = false
+    }
+
+    private func userNeedsOnboarding(_ user: User?) -> Bool {
+        guard let user else { return true }
+        let hasDorm = user.dorm?.trimmed.isNotEmpty == true
+        let hasTools = !user.primaryStudyTools.isEmpty || !user.studyTools.isEmpty
+        return !(hasDorm && hasTools)
+    }
+
+    private func mapErrorMessage(_ error: Error) -> String {
+        let nsError = error as NSError
+        guard nsError.domain == AuthErrorDomain else {
+            return error.localizedDescription
+        }
+
+        guard let code = AuthErrorCode(rawValue: nsError.code) else {
+            return error.localizedDescription
+        }
+
+        switch code {
+        case .tooManyRequests:
+            return "Too many requests from this device. Please wait and try again."
+        case .networkError:
+            return "Network issue while contacting Firebase. Check your connection and try again."
+        default:
+            return error.localizedDescription
+        }
     }
 }
