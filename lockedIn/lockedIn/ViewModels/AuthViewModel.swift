@@ -106,9 +106,13 @@ class AuthViewModel: ObservableObject {
 
     private func userNeedsOnboarding(_ user: User?) -> Bool {
         guard let user else { return true }
+        let hasDisplayName = user.displayName.trimmed.isNotEmpty
+        let hasMajor = user.major?.trimmed.isNotEmpty == true
+        let hasYear = user.year?.trimmed.isNotEmpty == true
         let hasDorm = user.dorm?.trimmed.isNotEmpty == true
         let hasTools = !user.primaryStudyTools.isEmpty || !user.studyTools.isEmpty
-        return !(hasDorm && hasTools)
+        let completed = user.onboardingCompletedAt != nil
+        return !(hasDisplayName && hasMajor && hasYear && hasDorm && hasTools && completed)
     }
 
     private func mapErrorMessage(_ error: Error) -> String {

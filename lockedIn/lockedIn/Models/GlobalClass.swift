@@ -1,6 +1,22 @@
 import Foundation
 import FirebaseFirestore
 
+// MARK: - Catalog School Enum
+
+enum CatalogSchool: String, CaseIterable, Codable {
+    case holyCross = "Holy Cross"
+    case notreDame = "Notre Dame"
+
+    var shortName: String {
+        switch self {
+        case .holyCross: return "HC"
+        case .notreDame: return "ND"
+        }
+    }
+}
+
+// MARK: - GlobalClass Model
+
 struct GlobalClass: Identifiable, Codable, Hashable {
     var id: String
     var courseCode: String
@@ -14,6 +30,12 @@ struct GlobalClass: Identifiable, Codable, Hashable {
     var createdAt: Date
     var updatedAt: Date
 
+    // Catalog fields
+    var isCatalogCourse: Bool?
+    var school: String?
+    var department: String?
+    var credits: Int?
+
     enum CodingKeys: String, CodingKey {
         case id
         case courseCode
@@ -26,6 +48,10 @@ struct GlobalClass: Identifiable, Codable, Hashable {
         case memberCount
         case createdAt
         case updatedAt
+        case isCatalogCourse
+        case school
+        case department
+        case credits
     }
 
     init(
@@ -39,7 +65,11 @@ struct GlobalClass: Identifiable, Codable, Hashable {
         createdByUserId: String,
         memberCount: Int = 0,
         createdAt: Date = Date(),
-        updatedAt: Date = Date()
+        updatedAt: Date = Date(),
+        isCatalogCourse: Bool? = nil,
+        school: String? = nil,
+        department: String? = nil,
+        credits: Int? = nil
     ) {
         self.id = id
         self.courseCode = courseCode
@@ -52,6 +82,10 @@ struct GlobalClass: Identifiable, Codable, Hashable {
         self.memberCount = memberCount
         self.createdAt = createdAt
         self.updatedAt = updatedAt
+        self.isCatalogCourse = isCatalogCourse
+        self.school = school
+        self.department = department
+        self.credits = credits
     }
 
     static func normalizedId(from courseCode: String) -> String {
@@ -59,6 +93,19 @@ struct GlobalClass: Identifiable, Codable, Hashable {
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .uppercased()
             .replacingOccurrences(of: " ", with: "")
+    }
+
+    /// Extracts department prefix from course code (e.g., "THEO" from "THEO10001")
+    static func extractDepartment(from courseCode: String) -> String? {
+        let normalized = normalizedId(from: courseCode)
+        let letters = normalized.prefix(while: { $0.isLetter })
+        return letters.isEmpty ? nil : String(letters)
+    }
+
+    /// Returns the CatalogSchool enum if school string matches
+    var catalogSchool: CatalogSchool? {
+        guard let school = school else { return nil }
+        return CatalogSchool(rawValue: school)
     }
 }
 

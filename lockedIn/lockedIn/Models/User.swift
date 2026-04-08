@@ -25,6 +25,7 @@ struct User: Identifiable, Codable {
     var selectedTitle: String?
     var selectedFrame: String?
     var unlockedCosmetics: [String]
+    var onboardingCompletedAt: Date?
     var createdAt: Date
     var updatedAt: Date
 
@@ -35,7 +36,7 @@ struct User: Identifiable, Codable {
         case screenTimeUpdatedAt, screenTimeVisibilityEnabled
         case currentStreak, longestStreak, lastActiveDate
         case selectedTitle, selectedFrame, unlockedCosmetics
-        case createdAt, updatedAt
+        case onboardingCompletedAt, createdAt, updatedAt
     }
 
     init(from decoder: Decoder) throws {
@@ -58,13 +59,14 @@ struct User: Identifiable, Codable {
         dailyProductiveMinutes = try container.decodeIfPresent(Int.self, forKey: .dailyProductiveMinutes) ?? 0
         dailyNonProductiveMinutes = try container.decodeIfPresent(Int.self, forKey: .dailyNonProductiveMinutes) ?? 0
         screenTimeUpdatedAt = try container.decodeIfPresent(Date.self, forKey: .screenTimeUpdatedAt)
-        screenTimeVisibilityEnabled = try container.decodeIfPresent(Bool.self, forKey: .screenTimeVisibilityEnabled) ?? true
+        screenTimeVisibilityEnabled = try container.decodeIfPresent(Bool.self, forKey: .screenTimeVisibilityEnabled) ?? false
         currentStreak = try container.decodeIfPresent(Int.self, forKey: .currentStreak) ?? 0
         longestStreak = try container.decodeIfPresent(Int.self, forKey: .longestStreak) ?? 0
         lastActiveDate = try container.decodeIfPresent(Date.self, forKey: .lastActiveDate)
         selectedTitle = try container.decodeIfPresent(String.self, forKey: .selectedTitle)
         selectedFrame = try container.decodeIfPresent(String.self, forKey: .selectedFrame)
         unlockedCosmetics = try container.decodeIfPresent([String].self, forKey: .unlockedCosmetics) ?? []
+        onboardingCompletedAt = try container.decodeIfPresent(Date.self, forKey: .onboardingCompletedAt)
         createdAt = try container.decodeIfPresent(Date.self, forKey: .createdAt) ?? Date()
         updatedAt = try container.decodeIfPresent(Date.self, forKey: .updatedAt) ?? Date()
     }
@@ -105,13 +107,14 @@ struct User: Identifiable, Codable {
         dailyProductiveMinutes: Int = 0,
         dailyNonProductiveMinutes: Int = 0,
         screenTimeUpdatedAt: Date? = nil,
-        screenTimeVisibilityEnabled: Bool = true,
+        screenTimeVisibilityEnabled: Bool = false,
         currentStreak: Int = 0,
         longestStreak: Int = 0,
         lastActiveDate: Date? = nil,
         selectedTitle: String? = nil,
         selectedFrame: String? = nil,
         unlockedCosmetics: [String] = [],
+        onboardingCompletedAt: Date? = nil,
         createdAt: Date = Date(),
         updatedAt: Date = Date()
     ) {
@@ -138,6 +141,7 @@ struct User: Identifiable, Codable {
         self.selectedTitle = selectedTitle
         self.selectedFrame = selectedFrame
         self.unlockedCosmetics = unlockedCosmetics
+        self.onboardingCompletedAt = onboardingCompletedAt
         self.createdAt = createdAt
         self.updatedAt = updatedAt
     }

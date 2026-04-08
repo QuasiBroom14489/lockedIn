@@ -82,18 +82,33 @@ class AuthService: ObservableObject {
     // MARK: - Delete Account
 
     func deleteAccount() async throws {
-        guard let user = currentUser else {
+        guard let user = currentUser, let userId = currentUserId else {
             throw AuthError.notAuthenticated
         }
 
-        if let userId = currentUserId {
-            try await FirebaseService.shared.db
-                .collection(Constants.Firebase.usersCollection)
-                .document(userId)
-                .delete()
+        let userDocRef = FirebaseService.shared.db
+            .collection(Constants.Firebase.usersCollection)
+            .document(userId)
+
+        // Delete Firebase Auth user first - this is the action most likely to fail
+        // (requires recent authentication). If this fails, no data is lost.
+        do {
+            try await user.delete()
+        } catch {
+            // Auth deletion failed - user data is still intact
+            throw AuthError.accountDeletionFailed(underlying: error)
         }
 
-        try await user.delete()
+        // Auth deletion succeeded - now delete Firestore data
+        // If this fails, user is already deleted from Auth but data remains
+        // This is acceptable as orphaned data can be cleaned up later
+        do {
+            try await userDocRef.delete()
+        } catch {
+            // Log but don't throw - Auth user is already deleted
+            // Orphaned Firestore data can be cleaned up via Cloud Function or admin
+            print("Warning: Auth user deleted but Firestore cleanup failed for userId=\(userId): \(error.localizedDescription)")
+        }
     }
 
     // MARK: - Update Email
@@ -135,6 +150,7 @@ enum AuthError: LocalizedError {
     case googleSignInUnavailable
     case googleAccountMissingEmail
     case googleNonNDEmailRejected
+    case accountDeletionFailed(underlying: Error)
     case unknown(String)
 
     var errorDescription: String? {
@@ -151,6 +167,8 @@ enum AuthError: LocalizedError {
             return "Google account did not provide an email address."
         case .googleNonNDEmailRejected:
             return "Only @nd.edu Google accounts are allowed."
+        case .accountDeletionFailed(let underlying):
+            return "Account deletion failed. You may need to sign in again. (\(underlying.localizedDescription))"
         case .unknown(let message):
             return message
         }

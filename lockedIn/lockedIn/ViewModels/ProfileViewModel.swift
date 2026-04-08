@@ -40,6 +40,12 @@ class ProfileViewModel: ObservableObject {
     @Published var classUserPosts: [StudyPost] = []
     @Published var isLoadingClassPosts = false
 
+    // Catalog state
+    @Published var catalogCourses: [GlobalClass] = []
+    @Published var selectedCatalogSchool: CatalogSchool? = .holyCross
+    @Published var catalogSearchQuery: String = ""
+    @Published var isLoadingCatalog = false
+
     // Legacy compatibility for older views still using UserClass.
     @Published var userClasses: [UserClass] = []
     @Published var selectedClass: UserClass?
@@ -337,8 +343,20 @@ class ProfileViewModel: ObservableObject {
             let memberships = try await firebaseService.getUserClassMemberships(userId: userId)
             let globals = try await firebaseService.getGlobalClassesByIds(memberships.map(\.classId))
             let globalsById = Dictionary(uniqueKeysWithValues: globals.map { ($0.id, $0) })
-            classItems = memberships.compactMap { membership in
-                guard let global = globalsById[membership.classId] else { return nil }
+            classItems = memberships.map { membership in
+                let global = globalsById[membership.classId] ?? GlobalClass(
+                    id: membership.classId,
+                    courseCode: membership.classId,
+                    displayName: nil,
+                    instructorName: nil,
+                    recentTerms: membership.term.isEmpty ? [] : [membership.term],
+                    instructorNames: [],
+                    aliases: [],
+                    createdByUserId: userId,
+                    memberCount: 0,
+                    createdAt: membership.joinedAt,
+                    updatedAt: membership.updatedAt
+                )
                 return ProfileClassItem(global: global, membership: membership)
             }
                 .sorted { $0.membership.updatedAt > $1.membership.updatedAt }
@@ -360,6 +378,7 @@ class ProfileViewModel: ObservableObject {
 
     func addOrJoinClass(
         courseCode: String,
+        term: String,
         displayName: String?,
         instructorName: String?
     ) async -> Bool {
@@ -368,19 +387,19 @@ class ProfileViewModel: ObservableObject {
             return false
         }
         do {
-            let globalClass = try await firebaseService.createGlobalClassIfNeeded(
+            let globalClass = try await firebaseService.createOrJoinClassForUser(
+                userId: userId,
                 courseCode: courseCode,
+                term: term,
                 displayName: displayName,
-                instructorName: instructorName,
-                createdByUserId: userId
+                instructorName: instructorName
             )
-            try await firebaseService.joinClass(userId: userId, classId: globalClass.id)
             await loadClassItems(userId: userId)
             userClasses = try await firebaseService.getUserClasses(userId: userId)
             classErrorMessage = nil
             return true
         } catch {
-            let message = "Add class failed. classCode=\(courseCode) reason=\(error.localizedDescription)"
+            let message = "Add class failed. classCode=\(courseCode) term=\(term) reason=\(error.localizedDescription)"
             print(message)
             classErrorMessage = message
             return false
@@ -390,6 +409,7 @@ class ProfileViewModel: ObservableObject {
     func saveClass(_ userClass: UserClass) async -> Bool {
         await addOrJoinClass(
             courseCode: userClass.courseCode,
+            term: userClass.term,
             displayName: userClass.displayName,
             instructorName: userClass.instructorName
         )
@@ -467,6 +487,55 @@ class ProfileViewModel: ObservableObject {
             return true
         } catch {
             classErrorMessage = error.localizedDescription
+            return false
+        }
+    }
+
+    // MARK: - Catalog Operations
+
+    func loadCatalogCourses() async {
+        isLoadingCatalog = true
+        defer { isLoadingCatalog = false }
+
+        do {
+            catalogCourses = try await firebaseService.getCatalogCourses(school: selectedCatalogSchool)
+            classErrorMessage = nil
+        } catch {
+            catalogCourses = []
+            classErrorMessage = error.localizedDescription
+        }
+    }
+
+    func searchCatalogCourses() async {
+        isLoadingCatalog = true
+        defer { isLoadingCatalog = false }
+
+        do {
+            catalogCourses = try await firebaseService.searchCatalogCourses(
+                query: catalogSearchQuery,
+                school: selectedCatalogSchool
+            )
+            classErrorMessage = nil
+        } catch {
+            catalogCourses = []
+            classErrorMessage = error.localizedDescription
+        }
+    }
+
+    func joinCatalogCourse(_ course: GlobalClass, term: String) async -> Bool {
+        guard let userId = user?.id else {
+            classErrorMessage = "Profile not loaded. Try again."
+            return false
+        }
+
+        do {
+            try await firebaseService.joinClass(userId: userId, classId: course.id, term: term)
+            await loadClassItems(userId: userId)
+            userClasses = try await firebaseService.getUserClasses(userId: userId)
+            classErrorMessage = nil
+            return true
+        } catch {
+            classErrorMessage = "Could not join class. \(error.localizedDescription)"
             return false
         }
     }

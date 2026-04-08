@@ -35,3 +35,7 @@ Pods/
 
 # Node
 node_modules/
+
+# Business docs (keep private/local)
+business/
+scripts/serviceAccountKey.json

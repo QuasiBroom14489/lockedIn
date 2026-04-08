@@ -6,8 +6,8 @@ struct TierBannerView: View {
     var showShimmer: Bool = true
 
     @State private var shimmerPhase: CGFloat = -1
-    @State private var wavePhase: CGFloat = 0
     @State private var floatingParticles: [FloatingParticle] = []
+    @State private var clovers: [BannerClover] = []
 
     private var shouldAnimate: Bool {
         tier.hasAnimation && showShimmer
@@ -15,64 +15,78 @@ struct TierBannerView: View {
 
     var body: some View {
         ZStack {
-            // Base gradient with mesh-like effect
             GeometryReader { geometry in
                 ZStack {
-                    // Primary gradient
-                    LinearGradient(
-                        colors: tier.gradientColors + [tier.gradientColors.first ?? tier.color],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
+                    bannerBase
+
+                    ambientGlow(
+                        color: tier.gradientColors.first ?? tier.color,
+                        x: geometry.size.width * 0.18,
+                        y: geometry.size.height * 0.26,
+                        width: geometry.size.width * 0.55,
+                        height: geometry.size.height * 0.95
                     )
 
-                    // Animated wave overlay
-                    if shouldAnimate {
-                        waveOverlay(in: geometry.size)
+                    ambientGlow(
+                        color: tier.gradientColors.last ?? tier.color,
+                        x: geometry.size.width * 0.82,
+                        y: geometry.size.height * 0.22,
+                        width: geometry.size.width * 0.5,
+                        height: geometry.size.height * 0.88
+                    )
+
+                    ambientGlow(
+                        color: tier.color.opacity(0.9),
+                        x: geometry.size.width * 0.52,
+                        y: geometry.size.height * 0.72,
+                        width: geometry.size.width * 0.75,
+                        height: geometry.size.height * 0.6
+                    )
+
+                    ForEach(clovers) { clover in
+                        BannerCloverView(
+                            clover: clover,
+                            tier: tier,
+                            containerSize: geometry.size
+                        )
                     }
 
-                    // Floating particles for higher tiers
                     if tier.hasGlow {
                         ForEach(floatingParticles) { particle in
-                            FloatingParticleView(particle: particle, tier: tier, containerSize: geometry.size)
+                            FloatingParticleView(
+                                particle: particle,
+                                tier: tier,
+                                containerSize: geometry.size
+                            )
                         }
                     }
 
-                    // Subtle noise texture
-                    noiseOverlay
-
-                    // Shimmer sweep
                     if shouldAnimate {
                         shimmerOverlay(in: geometry.size)
                     }
                 }
             }
 
-            // Bottom gradient fade
-            VStack {
-                Spacer()
-                LinearGradient(
-                    colors: [.clear, AppColors.surface.opacity(0.3), AppColors.surface.opacity(0.8)],
-                    startPoint: .top,
-                    endPoint: .bottom
+            Rectangle()
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            Color.black.opacity(0.08),
+                            .clear,
+                            Color.black.opacity(0.14)
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
                 )
-                .frame(height: 50)
-            }
-
-            // Top vignette
-            VStack {
-                LinearGradient(
-                    colors: [Color.black.opacity(0.2), .clear],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-                .frame(height: 30)
-                Spacer()
-            }
         }
         .frame(height: height)
-        .clipShape(RoundedRectangle(cornerRadius: 0))
+        .clipped()
         .onAppear {
-            if tier.hasGlow {
+            if clovers.isEmpty {
+                clovers = BannerClover.defaultLayout
+            }
+            if tier.hasGlow && floatingParticles.isEmpty {
                 generateParticles()
             }
             if shouldAnimate {
@@ -81,73 +95,65 @@ struct TierBannerView: View {
         }
     }
 
-    private func waveOverlay(in size: CGSize) -> some View {
-        Canvas { context, canvasSize in
-            let waveHeight: CGFloat = 8
-            let wavelength: CGFloat = 60
+    private var bannerBase: some View {
+        ZStack {
+            LinearGradient(
+                colors: [
+                    AppColors.backgroundSecondary,
+                    (tier.gradientColors.first ?? tier.color).opacity(0.42),
+                    (tier.gradientColors.last ?? tier.color).opacity(0.28),
+                    AppColors.surfaceElevated
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
 
-            for i in 0..<3 {
-                var path = Path()
-                let yOffset = canvasSize.height * (0.3 + CGFloat(i) * 0.25)
-
-                path.move(to: CGPoint(x: 0, y: yOffset))
-
-                for x in stride(from: 0, to: canvasSize.width + 10, by: 5) {
-                    let relativeX = x / wavelength + wavePhase + CGFloat(i) * 0.5
-                    let y = yOffset + sin(relativeX) * waveHeight
-                    path.addLine(to: CGPoint(x: x, y: y))
-                }
-
-                context.stroke(
-                    path,
-                    with: .color(.white.opacity(0.05 - Double(i) * 0.01)),
-                    lineWidth: 1
-                )
-            }
+            RadialGradient(
+                colors: [tier.color.opacity(0.16), .clear],
+                center: .center,
+                startRadius: 12,
+                endRadius: 220
+            )
         }
     }
 
-    private var noiseOverlay: some View {
-        Rectangle()
-            .fill(.white.opacity(0.02))
-            .background(
-                Canvas { context, size in
-                    for _ in 0..<50 {
-                        let x = CGFloat.random(in: 0...size.width)
-                        let y = CGFloat.random(in: 0...size.height)
-                        let rect = CGRect(x: x, y: y, width: 1, height: 1)
-                        context.fill(
-                            Rectangle().path(in: rect),
-                            with: .color(.white.opacity(Double.random(in: 0.01...0.04)))
-                        )
-                    }
-                }
-            )
+    private func ambientGlow(
+        color: Color,
+        x: CGFloat,
+        y: CGFloat,
+        width: CGFloat,
+        height: CGFloat
+    ) -> some View {
+        Ellipse()
+            .fill(color.opacity(tier == .bronze ? 0.18 : 0.14))
+            .frame(width: width, height: height)
+            .blur(radius: 30)
+            .position(x: x, y: y)
     }
 
     private func shimmerOverlay(in size: CGSize) -> some View {
         LinearGradient(
             colors: [
                 .clear,
-                .white.opacity(0.1),
-                .white.opacity(0.2),
-                .white.opacity(0.1),
+                .white.opacity(0.03),
+                (tier == .obsidian ? AppColors.gold : .white).opacity(0.14),
+                .white.opacity(0.03),
                 .clear
             ],
             startPoint: .leading,
             endPoint: .trailing
         )
-        .frame(width: size.width * 0.6)
-        .rotationEffect(.degrees(15))
+        .frame(width: size.width * 0.5)
+        .rotationEffect(.degrees(12))
         .offset(x: shimmerPhase * size.width * 2)
         .mask(Rectangle())
     }
 
     private func generateParticles() {
-        floatingParticles = (0..<15).map { _ in
+        floatingParticles = (0..<12).map { _ in
             FloatingParticle(
-                x: CGFloat.random(in: 0...1),
-                y: CGFloat.random(in: 0...1),
+                x: CGFloat.random(in: 0.08...0.92),
+                y: CGFloat.random(in: 0.12...0.88),
                 size: CGFloat.random(in: 2...5),
                 speed: CGFloat.random(in: 0.3...0.8),
                 delay: Double.random(in: 0...2)
@@ -156,25 +162,110 @@ struct TierBannerView: View {
     }
 
     private func startAnimations() {
-        // Shimmer
         withAnimation(
-            .linear(duration: 4)
+            .linear(duration: 4.8)
             .repeatForever(autoreverses: false)
         ) {
             shimmerPhase = 1
         }
-
-        // Wave
-        withAnimation(
-            .linear(duration: 6)
-            .repeatForever(autoreverses: false)
-        ) {
-            wavePhase = .pi * 2
-        }
     }
 }
 
-// MARK: - Floating Particle
+struct BannerClover: Identifiable {
+    let id = UUID()
+    let x: CGFloat
+    let y: CGFloat
+    let size: CGFloat
+    let rotation: Double
+    let opacity: Double
+
+    static let defaultLayout: [BannerClover] = [
+        BannerClover(x: 0.12, y: 0.22, size: 28, rotation: -14, opacity: 0.16),
+        BannerClover(x: 0.24, y: 0.7, size: 38, rotation: 8, opacity: 0.12),
+        BannerClover(x: 0.38, y: 0.32, size: 22, rotation: -8, opacity: 0.14),
+        BannerClover(x: 0.53, y: 0.58, size: 44, rotation: 12, opacity: 0.1),
+        BannerClover(x: 0.66, y: 0.18, size: 32, rotation: -10, opacity: 0.14),
+        BannerClover(x: 0.8, y: 0.64, size: 26, rotation: 16, opacity: 0.16),
+        BannerClover(x: 0.9, y: 0.34, size: 36, rotation: -18, opacity: 0.1)
+    ]
+}
+
+struct BannerCloverView: View {
+    let clover: BannerClover
+    let tier: StatusTier
+    let containerSize: CGSize
+
+    private var cloverColor: Color {
+        switch tier {
+        case .bronze:
+            return Color(hex: "B08861")
+        case .silver:
+            return Color(hex: "C9D1DB")
+        case .gold:
+            return Color(hex: "D8B24A")
+        case .platinum:
+            return Color(hex: "D6E2EC")
+        case .diamond:
+            return Color(hex: "90C8FF")
+        case .obsidian:
+            return AppColors.gold
+        }
+    }
+
+    var body: some View {
+        ZStack {
+            ShamrockMark(color: cloverColor.opacity(clover.opacity))
+                .frame(width: clover.size * 1.02, height: clover.size * 1.06)
+                .rotationEffect(.degrees(clover.rotation))
+
+            ShamrockMark(color: cloverColor.opacity(clover.opacity * 0.36))
+                .frame(width: clover.size * 1.02, height: clover.size * 1.06)
+                .rotationEffect(.degrees(clover.rotation))
+                .blur(radius: 6)
+        }
+        .position(
+            x: containerSize.width * clover.x,
+            y: containerSize.height * clover.y
+        )
+    }
+}
+
+struct ShamrockMark: View {
+    var color: Color
+
+    var body: some View {
+        GeometryReader { geometry in
+            let width = geometry.size.width
+            let height = geometry.size.height
+
+            ZStack {
+                Circle()
+                    .frame(width: width * 0.46, height: width * 0.46)
+                    .offset(x: -width * 0.18, y: height * 0.15)
+
+                Circle()
+                    .frame(width: width * 0.42, height: width * 0.42)
+                    .offset(x: -width * 0.02, y: -height * 0.08)
+
+                Circle()
+                    .frame(width: width * 0.42, height: width * 0.42)
+                    .offset(x: width * 0.16, y: -height * 0.02)
+
+                Circle()
+                    .frame(width: width * 0.46, height: width * 0.46)
+                    .offset(x: width * 0.21, y: height * 0.18)
+
+                Capsule()
+                    .frame(width: width * 0.12, height: height * 0.4)
+                    .offset(x: -width * 0.02, y: height * 0.42)
+                    .rotationEffect(.degrees(28))
+            }
+            .foregroundColor(color)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+        .compositingGroup()
+    }
+}
 
 struct FloatingParticle: Identifiable {
     let id = UUID()
@@ -197,7 +288,10 @@ struct FloatingParticleView: View {
         Circle()
             .fill(
                 RadialGradient(
-                    colors: [.white.opacity(0.6), .white.opacity(0)],
+                    colors: [
+                        particleColor.opacity(0.55),
+                        particleColor.opacity(0)
+                    ],
                     center: .center,
                     startRadius: 0,
                     endRadius: particle.size
@@ -220,9 +314,11 @@ struct FloatingParticleView: View {
                 }
             }
     }
-}
 
-// MARK: - Full Width Banner with Avatar
+    private var particleColor: Color {
+        tier == .obsidian ? AppColors.gold : .white
+    }
+}
 
 struct ProfileTierBanner: View {
     let tier: StatusTier
@@ -234,12 +330,10 @@ struct ProfileTierBanner: View {
 
     var body: some View {
         ZStack(alignment: .bottom) {
-            // Banner
             TierBannerView(tier: tier, height: 130)
                 .opacity(bannerAppeared ? 1 : 0)
-                .scaleEffect(y: bannerAppeared ? 1 : 0.95, anchor: .top)
+                .scaleEffect(y: bannerAppeared ? 1 : 0.97, anchor: .top)
 
-            // Avatar overlapping the banner
             EnhancedTierAvatarView(
                 photoURL: photoURL,
                 displayName: displayName,
@@ -256,8 +350,6 @@ struct ProfileTierBanner: View {
         }
     }
 }
-
-// MARK: - Previews
 
 #Preview("Tier Banners") {
     ScrollView {
@@ -282,7 +374,7 @@ struct ProfileTierBanner: View {
 #Preview("Profile Banner") {
     VStack {
         ProfileTierBanner(
-            tier: .diamond,
+            tier: .bronze,
             photoURL: nil,
             displayName: "John Doe"
         )

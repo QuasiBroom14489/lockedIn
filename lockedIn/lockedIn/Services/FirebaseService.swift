@@ -117,6 +117,82 @@ class FirebaseService {
             .map(\.0)
     }
 
+    // MARK: - Catalog Course Operations
+
+    /// Fetches all pre-defined catalog courses, optionally filtered by school
+    func getCatalogCourses(school: CatalogSchool? = nil) async throws -> [GlobalClass] {
+        let classesCollection = db.collection(Constants.Firebase.globalClassesCollection)
+
+        var query: Query = classesCollection
+            .whereField("isCatalogCourse", isEqualTo: true)
+
+        if let school = school {
+            query = query.whereField("school", isEqualTo: school.rawValue)
+        }
+
+        let snapshot = try await query
+            .order(by: "courseCode")
+            .getDocuments()
+
+        return decodeGlobalClasses(from: snapshot.documents)
+    }
+
+    /// Searches catalog courses by query (course code or name), optionally filtered by school
+    func searchCatalogCourses(query: String, school: CatalogSchool? = nil) async throws -> [GlobalClass] {
+        // Fetch all catalog courses (small set, <50 initially)
+        let allCatalog = try await getCatalogCourses(school: school)
+
+        let trimmed = query.trimmed
+        if trimmed.isEmpty {
+            return allCatalog.sorted { $0.courseCode < $1.courseCode }
+        }
+
+        // Filter client-side for flexible matching
+        let lowerQuery = trimmed.lowercased()
+        let normalizedQuery = GlobalClass.normalizedId(from: trimmed)
+
+        return allCatalog
+            .map { course -> (GlobalClass, Int) in
+                var score = 0
+                let code = course.courseCode.lowercased()
+                let normalizedCode = GlobalClass.normalizedId(from: course.courseCode).lowercased()
+                let displayName = course.displayName?.lowercased() ?? ""
+
+                // Exact code match
+                if normalizedCode == normalizedQuery.lowercased() {
+                    score = 400
+                }
+                // Code prefix match
+                else if normalizedCode.hasPrefix(normalizedQuery.lowercased()) {
+                    score = 300
+                }
+                // Display name starts with query
+                else if displayName.hasPrefix(lowerQuery) {
+                    score = 250
+                }
+                // Code contains query
+                else if normalizedCode.contains(normalizedQuery.lowercased()) {
+                    score = 200
+                }
+                // Display name contains query
+                else if displayName.contains(lowerQuery) {
+                    score = 150
+                }
+                // Department match
+                else if let dept = course.department?.lowercased(), dept.hasPrefix(lowerQuery) {
+                    score = 100
+                }
+
+                return (course, score)
+            }
+            .filter { $0.1 > 0 }
+            .sorted { lhs, rhs in
+                if lhs.1 != rhs.1 { return lhs.1 > rhs.1 }
+                return lhs.0.courseCode < rhs.0.courseCode
+            }
+            .map(\.0)
+    }
+
     func createGlobalClassIfNeeded(
         courseCode: String,
         displayName: String? = nil,
@@ -935,45 +1011,91 @@ class FirebaseService {
         let voteId = voteDocumentId(postId: postId, userId: userId)
         let voteRef = db.collection(Constants.Firebase.votesCollection).document(voteId)
         let postRef = db.collection(Constants.Firebase.studyPostsCollection).document(postId)
-        let postDoc = try await postRef.getDocument()
 
-        guard postDoc.exists else {
-            throw FirebaseError.postNotFound
-        }
+        try await db.runTransaction { transaction, errorPointer in
+            // Read post document
+            let postDoc: DocumentSnapshot
+            do {
+                postDoc = try transaction.getDocument(postRef)
+            } catch let error as NSError {
+                errorPointer?.pointee = error
+                return nil
+            }
 
-        let currentVoteDoc = try await voteRef.getDocument()
-        let currentVote = (try? currentVoteDoc.data(as: Vote.self))?.type ?? .none
+            guard postDoc.exists else {
+                errorPointer?.pointee = NSError(
+                    domain: "FirebaseService",
+                    code: -1,
+                    userInfo: [NSLocalizedDescriptionKey: "Post not found"]
+                )
+                return nil
+            }
 
-        // No-op if nothing changes.
-        guard currentVote != newType else { return }
+            // Read current vote document
+            let currentVoteDoc: DocumentSnapshot
+            do {
+                currentVoteDoc = try transaction.getDocument(voteRef)
+            } catch let error as NSError {
+                errorPointer?.pointee = error
+                return nil
+            }
 
-        let delta = voteCounterDelta(from: currentVote, to: newType)
-        let batch = db.batch()
-        let now = Date()
+            let currentVote: VoteType
+            if currentVoteDoc.exists,
+               let voteData = currentVoteDoc.data() {
+                if let typeRaw = voteData["type"] as? String,
+                   let voteType = VoteType(rawValue: typeRaw) {
+                    currentVote = voteType
+                } else if let legacyType = voteData["type"] as? Int {
+                    switch legacyType {
+                    case 1:
+                        currentVote = .upvote
+                    case -1:
+                        currentVote = .downvote
+                    default:
+                        currentVote = .none
+                    }
+                } else {
+                    currentVote = .none
+                }
+            } else {
+                currentVote = .none
+            }
 
-        batch.updateData([
-            "upvoteCount": FieldValue.increment(Int64(delta.upvotes)),
-            "downvoteCount": FieldValue.increment(Int64(delta.downvotes)),
-            "hotScore": FieldValue.increment(Double(delta.upvotes - delta.downvotes)),
-            "updatedAt": now
-        ], forDocument: postRef)
+            // No-op if nothing changes
+            guard currentVote != newType else { return nil }
 
-        if newType == .none {
-            batch.deleteDocument(voteRef)
-        } else {
-            let voteData: [String: Any] = [
-                "postId": postId,
-                "userId": userId,
-                "type": newType.rawValue,
-                "createdAt": currentVoteDoc.exists
+            let delta = self.voteCounterDelta(from: currentVote, to: newType)
+            let now = Date()
+
+            // Update post counters
+            transaction.updateData([
+                "upvoteCount": FieldValue.increment(Int64(delta.upvotes)),
+                "downvoteCount": FieldValue.increment(Int64(delta.downvotes)),
+                "hotScore": FieldValue.increment(Double(delta.upvotes - delta.downvotes)),
+                "updatedAt": now
+            ], forDocument: postRef)
+
+            // Update or delete vote document
+            if newType == .none {
+                transaction.deleteDocument(voteRef)
+            } else {
+                let existingCreatedAt = currentVoteDoc.exists
                     ? (currentVoteDoc.data()?["createdAt"] as? Timestamp ?? Timestamp(date: now))
-                    : Timestamp(date: now),
-                "updatedAt": Timestamp(date: now)
-            ]
-            batch.setData(voteData, forDocument: voteRef, merge: true)
-        }
+                    : Timestamp(date: now)
 
-        try await batch.commit()
+                let voteData: [String: Any] = [
+                    "postId": postId,
+                    "userId": userId,
+                    "type": newType.rawValue,
+                    "createdAt": existingCreatedAt,
+                    "updatedAt": Timestamp(date: now)
+                ]
+                transaction.setData(voteData, forDocument: voteRef, merge: true)
+            }
+
+            return nil
+        }
     }
 
     func clearVote(postId: String, userId: String) async throws {
@@ -1097,34 +1219,63 @@ class FirebaseService {
         let favoriteRef = db.collection(Constants.Firebase.favoritesCollection).document(favoriteId)
         let postRef = db.collection(Constants.Firebase.studyPostsCollection).document(postId)
 
-        let currentFavoriteDoc = try await favoriteRef.getDocument()
-        let currentlyFavorited = currentFavoriteDoc.exists
+        try await db.runTransaction { transaction, errorPointer in
+            // Read post document to ensure it exists
+            let postDoc: DocumentSnapshot
+            do {
+                postDoc = try transaction.getDocument(postRef)
+            } catch let error as NSError {
+                errorPointer?.pointee = error
+                return nil
+            }
 
-        // No-op if state is unchanged.
-        guard currentlyFavorited != isFavorite else { return }
+            guard postDoc.exists else {
+                errorPointer?.pointee = NSError(
+                    domain: "FirebaseService",
+                    code: -1,
+                    userInfo: [NSLocalizedDescriptionKey: "Post not found"]
+                )
+                return nil
+            }
 
-        let batch = db.batch()
-        let now = Date()
-        let delta = isFavorite ? 1 : -1
+            // Read current favorite state
+            let currentFavoriteDoc: DocumentSnapshot
+            do {
+                currentFavoriteDoc = try transaction.getDocument(favoriteRef)
+            } catch let error as NSError {
+                errorPointer?.pointee = error
+                return nil
+            }
 
-        batch.updateData([
-            "favoriteCount": FieldValue.increment(Int64(delta)),
-            "updatedAt": now
-        ], forDocument: postRef)
+            let currentlyFavorited = currentFavoriteDoc.exists
 
-        if isFavorite {
-            let favoriteData: [String: Any] = [
-                "postId": postId,
-                "userId": userId,
-                "createdAt": Timestamp(date: now),
-                "updatedAt": Timestamp(date: now)
-            ]
-            batch.setData(favoriteData, forDocument: favoriteRef, merge: true)
-        } else {
-            batch.deleteDocument(favoriteRef)
+            // No-op if state is unchanged
+            guard currentlyFavorited != isFavorite else { return nil }
+
+            let now = Date()
+            let delta = isFavorite ? 1 : -1
+
+            // Update post favorite count
+            transaction.updateData([
+                "favoriteCount": FieldValue.increment(Int64(delta)),
+                "updatedAt": now
+            ], forDocument: postRef)
+
+            // Add or remove favorite document
+            if isFavorite {
+                let favoriteData: [String: Any] = [
+                    "postId": postId,
+                    "userId": userId,
+                    "createdAt": Timestamp(date: now),
+                    "updatedAt": Timestamp(date: now)
+                ]
+                transaction.setData(favoriteData, forDocument: favoriteRef, merge: true)
+            } else {
+                transaction.deleteDocument(favoriteRef)
+            }
+
+            return nil
         }
-
-        try await batch.commit()
     }
 
     func removeFavorite(postId: String, userId: String) async throws {

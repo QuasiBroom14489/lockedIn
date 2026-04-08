@@ -163,11 +163,23 @@ class FocusViewModel: ObservableObject {
         completedSession.completedAt = Date()
 
         var pointsEarned = 0
+        var sessionSavedSuccessfully = false
 
+        // Save session to Firebase first - this is the critical operation
         do {
             try await firebaseService.updateSession(completedSession, userId: userId)
+            sessionSavedSuccessfully = true
+        } catch {
+            handleError(error)
+            // Session failed to save - clean up UI state but don't show completion
+            currentSession = nil
+            isSessionActive = false
+            remainingSeconds = 0
+            return
+        }
 
-            // Update user's totals and points with screen-time bonus.
+        // Session saved successfully - now update user stats (best effort)
+        do {
             if var user = try await firebaseService.getUser(id: userId) {
                 user.totalFocusedSeconds += finalDuration
 
@@ -179,13 +191,17 @@ class FocusViewModel: ObservableObject {
                 user.updatedAt = Date()
                 try await firebaseService.updateUser(user)
             }
+        } catch {
+            // User stats update failed but session was saved
+            // Log but continue - session is recorded, stats can be reconciled later
+            print("Warning: Session saved but user stats update failed: \(error.localizedDescription)")
+        }
 
+        // Only show completion if session was saved successfully
+        if sessionSavedSuccessfully {
             completedSessionDuration = finalDuration
             showSessionComplete = true
-
             analyticsService.logFocusSessionCompleted(durationSeconds: finalDuration, pointsEarned: pointsEarned)
-        } catch {
-            handleError(error)
         }
 
         currentSession = nil

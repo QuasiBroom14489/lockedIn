@@ -327,9 +327,9 @@ struct ClassDetailSheetView: View {
 
             if isEditable {
                 TextField("https://open.spotify.com/...", text: $newSpotifyURL)
-                    .modernClassInputField()
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled(true)
+                    .modernClassInputField()
 
                 Button("Add Spotify Link") {
                     let trimmed = newSpotifyURL.trimmed
@@ -384,9 +384,9 @@ struct ClassDetailSheetView: View {
                     .modernClassInputField()
 
                 TextField("https://...", text: $newWebsiteURL)
-                    .modernClassInputField()
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled(true)
+                    .modernClassInputField()
 
                 Button("Add Helpful Website") {
                     let title = newWebsiteTitle.trimmed
@@ -423,69 +423,155 @@ struct AddClassSheetView: View {
     @Environment(\.dismiss) private var dismiss
     let suggestions: [GlobalClass]
     let onSearchChanged: (String) -> Void
-    let onCreate: (String, String?, String?) async -> Bool
-    let onJoinExisting: (GlobalClass) async -> Bool
+    let onCreate: (String, String, String?, String?) async -> Bool
+    let onJoinExisting: (GlobalClass, String) async -> Bool
 
     @State private var courseCode = ""
     @State private var displayName = ""
     @State private var instructorName = ""
+    @State private var selectedSemester = "Spring"
+    @State private var selectedYear = Calendar.current.component(.year, from: Date())
     @State private var isSubmitting = false
     @State private var localErrorMessage: String?
 
+    private var availableYears: [Int] {
+        let currentYear = Calendar.current.component(.year, from: Date())
+        return Array((2018...currentYear).reversed())
+    }
+
+    private var selectedTerm: String {
+        "\(selectedSemester) \(selectedYear)"
+    }
+
+    private var isCreateDisabled: Bool {
+        courseCode.trimmed.isEmpty || isSubmitting
+    }
+
     var body: some View {
         NavigationStack {
-            Form {
-                TextField("Course code (e.g. CSE20312)", text: $courseCode)
-                    .disabled(isSubmitting)
-                    .onChange(of: courseCode) { _, newValue in
-                        onSearchChanged(newValue)
-                    }
-                TextField("Class name (Optional)", text: $displayName)
-                    .disabled(isSubmitting)
-                TextField("Instructor (Optional)", text: $instructorName)
-                    .disabled(isSubmitting)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 14) {
+                    Text("Add Class")
+                        .font(AppFonts.headline())
+                        .foregroundColor(AppColors.textPrimary)
 
-                if !suggestions.isEmpty {
-                    Section("Suggestions") {
-                        ForEach(suggestions, id: \.id) { suggestion in
-                            Button {
-                                Task {
-                                    await joinExisting(suggestion)
-                                }
-                            } label: {
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(suggestion.courseCode)
-                                    if let name = suggestion.displayName, name.isNotEmpty {
-                                        Text(name)
-                                            .font(AppFonts.caption())
-                                            .foregroundColor(AppColors.textSecondary)
-                                    }
+                    TextField("Class code (e.g. CSE20312)", text: $courseCode)
+                        .disabled(isSubmitting)
+                        .modernClassInputField()
+                        .onChange(of: courseCode) { _, newValue in
+                            onSearchChanged(newValue)
+                        }
+
+                    HStack(spacing: 8) {
+                        Picker("Semester", selection: $selectedSemester) {
+                            Text("Spring").tag("Spring")
+                            Text("Fall").tag("Fall")
+                        }
+                        .pickerStyle(.segmented)
+                        .disabled(isSubmitting)
+
+                        Menu {
+                            ForEach(availableYears, id: \.self) { year in
+                                Button(String(year)) {
+                                    selectedYear = year
                                 }
                             }
-                            .disabled(isSubmitting)
+                        } label: {
+                            HStack(spacing: 6) {
+                                Text(String(selectedYear))
+                                    .font(AppFonts.caption())
+                                Image(systemName: "chevron.down")
+                            }
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 10)
+                            .background(AppColors.surface.opacity(0.88))
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .stroke(AppColors.borderSubtle, lineWidth: 1)
+                            )
+                        }
+                        .disabled(isSubmitting)
+                    }
+
+                    Text("Selected term: \(selectedTerm)")
+                        .font(AppFonts.caption())
+                        .foregroundColor(AppColors.gold)
+
+                    TextField("Class name (Optional)", text: $displayName)
+                        .disabled(isSubmitting)
+                        .modernClassInputField()
+                    TextField("Teacher (Optional)", text: $instructorName)
+                        .disabled(isSubmitting)
+                        .modernClassInputField()
+
+                    Button {
+                        Task {
+                            await submitClass()
+                        }
+                    } label: {
+                        Label("Create & Join", systemImage: "plus.circle.fill")
+                            .font(.headline)
+                            .foregroundColor(isCreateDisabled ? AppColors.textSecondary : AppColors.background)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 12)
+                            .background(isCreateDisabled ? AppColors.surface : AppColors.gold)
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(isCreateDisabled)
+
+                    if !suggestions.isEmpty {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Suggestions")
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundColor(AppColors.textSecondary)
+
+                            ForEach(suggestions, id: \.id) { suggestion in
+                                Button {
+                                    Task {
+                                        await joinExisting(suggestion)
+                                    }
+                                } label: {
+                                    HStack {
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            Text(suggestion.courseCode)
+                                                .font(AppFonts.body())
+                                                .foregroundColor(AppColors.textPrimary)
+                                            if let name = suggestion.displayName, name.isNotEmpty {
+                                                Text(name)
+                                                    .font(AppFonts.caption())
+                                                    .foregroundColor(AppColors.textSecondary)
+                                            }
+                                        }
+                                        Spacer()
+                                        Text("Join")
+                                            .font(AppFonts.caption())
+                                            .foregroundColor(AppColors.gold)
+                                    }
+                                    .padding(10)
+                                    .background(AppColors.surface.opacity(0.85))
+                                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                                }
+                                .buttonStyle(.plain)
+                                .disabled(isSubmitting)
+                            }
                         }
                     }
-                }
 
-                if let localErrorMessage, localErrorMessage.isNotEmpty {
-                    Text(localErrorMessage)
-                        .font(AppFonts.caption())
-                        .foregroundColor(AppColors.warning)
+                    if let localErrorMessage, localErrorMessage.isNotEmpty {
+                        Text(localErrorMessage)
+                            .font(AppFonts.caption())
+                            .foregroundColor(AppColors.warning)
+                    }
                 }
+                .padding()
             }
-            .navigationTitle("Add Class")
+            .background(AppColors.background.ignoresSafeArea())
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
                         .disabled(isSubmitting)
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Create & Join") {
-                        Task {
-                            await submitClass()
-                        }
-                    }
-                    .disabled(courseCode.trimmed.isEmpty || isSubmitting)
                 }
             }
         }
@@ -498,6 +584,7 @@ struct AddClassSheetView: View {
         let normalizedCourseCode = GlobalClass.normalizedId(from: courseCode)
         let didSave = await onCreate(
             normalizedCourseCode,
+            selectedTerm,
             displayName.isNotEmpty ? displayName.trimmed : nil,
             instructorName.isNotEmpty ? instructorName.trimmed : nil
         )
@@ -513,13 +600,300 @@ struct AddClassSheetView: View {
     private func joinExisting(_ globalClass: GlobalClass) async {
         isSubmitting = true
         defer { isSubmitting = false }
-        let didJoin = await onJoinExisting(globalClass)
+        let didJoin = await onJoinExisting(globalClass, selectedTerm)
         if didJoin {
             localErrorMessage = nil
             dismiss()
         } else {
             localErrorMessage = "Could not join class. Please try again."
         }
+    }
+}
+
+// MARK: - Catalog Class Picker View
+
+struct CatalogClassPickerView: View {
+    @Environment(\.dismiss) private var dismiss
+
+    let catalogCourses: [GlobalClass]
+    let isLoading: Bool
+    let errorMessage: String?
+    @Binding var selectedSchool: CatalogSchool?
+    @Binding var searchQuery: String
+    let onSchoolChanged: () -> Void
+    let onSearchChanged: () -> Void
+    let onJoin: (GlobalClass, String) async -> Bool
+
+    @State private var selectedCourse: GlobalClass?
+    @State private var selectedSemester = "Spring"
+    @State private var selectedYear = Calendar.current.component(.year, from: Date())
+    @State private var isJoining = false
+    @State private var localError: String?
+
+    private var availableYears: [Int] {
+        let currentYear = Calendar.current.component(.year, from: Date())
+        return Array((2018...currentYear + 1).reversed())
+    }
+
+    private var selectedTerm: String {
+        "\(selectedSemester) \(selectedYear)"
+    }
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 0) {
+                // Filters Section
+                VStack(spacing: 12) {
+                    // School Filter
+                    Picker("School", selection: $selectedSchool) {
+                        Text("All").tag(CatalogSchool?.none)
+                        ForEach(CatalogSchool.allCases, id: \.self) { school in
+                            Text(school.rawValue).tag(CatalogSchool?.some(school))
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .onChange(of: selectedSchool) { _, _ in
+                        onSchoolChanged()
+                    }
+
+                    // Search Field
+                    HStack {
+                        Image(systemName: "magnifyingglass")
+                            .foregroundColor(AppColors.textSecondary)
+                        TextField("Search courses...", text: $searchQuery)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled(true)
+                            .foregroundColor(AppColors.textPrimary)
+                        if !searchQuery.isEmpty {
+                            Button {
+                                searchQuery = ""
+                                onSearchChanged()
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .foregroundColor(AppColors.textSecondary)
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 10)
+                    .background(AppColors.surface.opacity(0.88))
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(AppColors.borderSubtle, lineWidth: 1)
+                    )
+                    .onChange(of: searchQuery) { _, _ in
+                        onSearchChanged()
+                    }
+
+                    // Term Selector
+                    HStack(spacing: 8) {
+                        Text("Term:")
+                            .font(AppFonts.caption())
+                            .foregroundColor(AppColors.textSecondary)
+
+                        Picker("Semester", selection: $selectedSemester) {
+                            Text("Spring").tag("Spring")
+                            Text("Fall").tag("Fall")
+                        }
+                        .pickerStyle(.segmented)
+                        .frame(maxWidth: 160)
+
+                        Menu {
+                            ForEach(availableYears, id: \.self) { year in
+                                Button(String(year)) {
+                                    selectedYear = year
+                                }
+                            }
+                        } label: {
+                            HStack(spacing: 4) {
+                                Text(String(selectedYear))
+                                    .font(AppFonts.caption())
+                                Image(systemName: "chevron.down")
+                                    .font(.caption2)
+                            }
+                            .foregroundColor(AppColors.gold)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 6)
+                            .background(AppColors.surface.opacity(0.88))
+                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                        }
+                    }
+                }
+                .padding()
+                .background(AppColors.backgroundSecondary)
+
+                Divider()
+                    .background(AppColors.borderSubtle)
+
+                // Course List
+                if isLoading {
+                    Spacer()
+                    ProgressView()
+                        .tint(AppColors.gold)
+                    Spacer()
+                } else if catalogCourses.isEmpty {
+                    Spacer()
+                    VStack(spacing: 12) {
+                        Image(systemName: "book.closed")
+                            .font(.system(size: 40))
+                            .foregroundColor(AppColors.textTertiary)
+                        Text("No courses found")
+                            .font(AppFonts.headline())
+                            .foregroundColor(AppColors.textPrimary)
+                        Text("Try adjusting your filters or search query.")
+                            .font(AppFonts.body())
+                            .foregroundColor(AppColors.textSecondary)
+                            .multilineTextAlignment(.center)
+                    }
+                    .padding()
+                    Spacer()
+                } else {
+                    ScrollView {
+                        LazyVStack(spacing: 8) {
+                            ForEach(catalogCourses, id: \.id) { course in
+                                CatalogCourseRow(
+                                    course: course,
+                                    isJoining: isJoining && selectedCourse?.id == course.id,
+                                    onJoin: {
+                                        Task {
+                                            await joinCourse(course)
+                                        }
+                                    }
+                                )
+                            }
+                        }
+                        .padding()
+                    }
+                }
+
+                // Error Messages
+                if let error = errorMessage ?? localError, !error.isEmpty {
+                    Text(error)
+                        .font(AppFonts.caption())
+                        .foregroundColor(AppColors.warning)
+                        .padding()
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(AppColors.surface)
+                }
+            }
+            .background(AppColors.background.ignoresSafeArea())
+            .navigationTitle("Add Class")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                        .disabled(isJoining)
+                }
+            }
+        }
+    }
+
+    private func joinCourse(_ course: GlobalClass) async {
+        selectedCourse = course
+        isJoining = true
+        localError = nil
+        defer { isJoining = false }
+
+        let success = await onJoin(course, selectedTerm)
+        if success {
+            dismiss()
+        } else {
+            localError = "Could not join \(course.courseCode). Please try again."
+        }
+    }
+}
+
+// MARK: - Catalog Course Row
+
+struct CatalogCourseRow: View {
+    let course: GlobalClass
+    let isJoining: Bool
+    let onJoin: () -> Void
+
+    private var instructorText: String? {
+        if !course.instructorNames.isEmpty {
+            if course.instructorNames.count == 1 {
+                return course.instructorNames[0]
+            } else {
+                return "\(course.instructorNames[0]) +\(course.instructorNames.count - 1) more"
+            }
+        } else if let instructor = course.instructorName, !instructor.isEmpty {
+            return instructor
+        }
+        return nil
+    }
+
+    var body: some View {
+        HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 6) {
+                    Text(course.courseCode)
+                        .font(AppFonts.headline())
+                        .foregroundColor(AppColors.textPrimary)
+
+                    if let school = course.catalogSchool {
+                        Text(school.shortName)
+                            .font(.caption2.weight(.semibold))
+                            .foregroundColor(AppColors.background)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(
+                                school == .holyCross ? AppColors.gold : AppColors.greenLight
+                            )
+                            .clipShape(Capsule())
+                    }
+
+                    if let credits = course.credits {
+                        Text("\(credits) cr")
+                            .font(.caption2)
+                            .foregroundColor(AppColors.textTertiary)
+                    }
+                }
+
+                if let displayName = course.displayName, !displayName.isEmpty {
+                    Text(displayName)
+                        .font(AppFonts.body())
+                        .foregroundColor(AppColors.textSecondary)
+                        .lineLimit(2)
+                }
+
+                if let instructor = instructorText {
+                    Label(instructor, systemImage: "person.text.rectangle")
+                        .font(AppFonts.caption())
+                        .foregroundColor(AppColors.textTertiary)
+                }
+
+                if course.memberCount > 0 {
+                    Text("\(course.memberCount) member\(course.memberCount == 1 ? "" : "s")")
+                        .font(AppFonts.caption())
+                        .foregroundColor(AppColors.textTertiary)
+                }
+            }
+
+            Spacer()
+
+            Button(action: onJoin) {
+                if isJoining {
+                    ProgressView()
+                        .scaleEffect(0.8)
+                        .tint(AppColors.gold)
+                } else {
+                    Text("Add")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundColor(AppColors.gold)
+                }
+            }
+            .frame(width: 60)
+            .disabled(isJoining)
+        }
+        .padding(12)
+        .background(AppColors.surface.opacity(0.85))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(AppColors.borderSubtle, lineWidth: 1)
+        )
     }
 }
 
@@ -537,3 +911,4 @@ private extension View {
             .foregroundColor(AppColors.textPrimary)
     }
 }
+

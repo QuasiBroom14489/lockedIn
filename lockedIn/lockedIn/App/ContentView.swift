@@ -3,7 +3,7 @@ import UIKit
 
 struct ContentView: View {
     @EnvironmentObject var authViewModel: AuthViewModel
-    @State private var selectedTab = 0
+    @AppStorage("app.selectedTab") private var selectedTab = 0
 
     var body: some View {
         TabView(selection: $selectedTab) {

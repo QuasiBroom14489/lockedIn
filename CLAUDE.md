@@ -2,6 +2,14 @@
 
 A study resource discovery platform for Notre Dame students. Users find tools, methods, and techniques that worked for others through verified academic success and shared Study Stacks.
 
+## Strategic Pivot (Spring 2026)
+
+> **Primary Feature**: Sharing study habits (Study Stacks, tips) is the MAIN feature, not the focus timer.
+> **Initial Market**: Gateway program students at Holy Cross College
+> **Launch**: Spring 2026
+
+The focus timer exists to build engagement and earn credibility (verified study time), but the core value is **social discovery of study resources**.
+
 ## Vision & Strategy
 
 ### Core Value Proposition
@@ -72,7 +80,7 @@ lockedIn/lockedIn/lockedIn/
 │   │   └── SignUpView.swift
 │   ├── Focus/
 │   │   ├── FocusTimerView.swift   # Timer setup
-│   │   ├── ActiveSessionView.swift # Running session with camera
+│   │   ├── ActiveSessionView.swift # Running session
 │   │   └── SessionCompleteView.swift
 │   ├── Leaderboard/
 │   │   └── LeaderboardView.swift  # Rankings with time filters
@@ -112,7 +120,6 @@ lockedIn/lockedIn/lockedIn/
 ├── Services/
 │   ├── AuthService.swift          # Firebase Auth wrapper
 │   ├── FirebaseService.swift      # Firestore + Storage (singleton)
-│   ├── CameraService.swift        # AVFoundation for verification
 │   └── ScreenTimeService.swift    # Family Controls API (optional)
 └── Utilities/
     ├── Constants.swift            # Firebase collections, UI sizing, AppColors
@@ -383,7 +390,6 @@ Shamrock (☘ U+2618) used as subtle Notre Dame Easter eggs:
 
 ### Focus Sessions
 - Minimum duration: 60 seconds
-- Camera verification during session
 - Sessions stored in user subcollection
 - `totalFocusedSeconds` aggregated on user document
 

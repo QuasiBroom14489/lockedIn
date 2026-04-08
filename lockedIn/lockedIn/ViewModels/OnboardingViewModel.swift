@@ -14,6 +14,11 @@ struct OnboardingClassSelection: Identifiable, Hashable {
 
 @MainActor
 final class OnboardingViewModel: ObservableObject {
+    @Published var displayName: String = ""
+    @Published var major: String = ""
+    @Published var year: String = ""
+    @Published var displayNameError: String?
+    @Published var majorError: String?
     @Published var suggestedClasses: [GlobalClass] = []
     @Published var suggestedTools: [GlobalTool] = []
     @Published var selectedToolIds = Set<String>()
@@ -28,6 +33,22 @@ final class OnboardingViewModel: ObservableObject {
 
     @Published var isLoading = false
     @Published var errorMessage: String?
+
+    let yearOptions = ["Freshman", "Sophomore", "Junior", "Senior", "Graduate"]
+
+    let commonMajors = [
+        "Accounting", "Aerospace Engineering", "American Studies", "Anthropology",
+        "Applied Mathematics", "Architecture", "Art History", "Biology",
+        "Business Analytics", "Chemical Engineering", "Chemistry", "Civil Engineering",
+        "Classics", "Computer Engineering", "Computer Science", "Design",
+        "Economics", "Electrical Engineering", "English", "Environmental Engineering",
+        "Film, Television, and Theatre", "Finance", "French", "German",
+        "Global Affairs", "History", "Information Technology", "Irish Studies",
+        "Management", "Marketing", "Mathematics", "Mechanical Engineering",
+        "Music", "Neuroscience", "Philosophy", "Physics", "Political Science",
+        "Pre-Professional Studies", "Psychology", "Romance Languages", "Sociology",
+        "Spanish", "Statistics", "Theology"
+    ]
 
     private let firebaseService = FirebaseService.shared
     private let defaultToolNames = [
@@ -50,6 +71,7 @@ final class OnboardingViewModel: ObservableObject {
         defer { isLoading = false }
 
         do {
+            try await loadInitialProfileData(userId: userId)
             let user = try await firebaseService.getUser(id: userId)
             selectedDorm = user?.dorm ?? ""
             selectedToolNames = user?.primaryStudyTools.isEmpty == false
@@ -76,11 +98,33 @@ final class OnboardingViewModel: ObservableObject {
             if suggestedTools.isEmpty {
                 suggestedTools = defaultTools(createdByUserId: userId, query: nil)
             }
+            syncValidationErrors()
             errorMessage = nil
         } catch {
             suggestedTools = defaultTools(createdByUserId: userId, query: nil)
             errorMessage = "Could not load onboarding suggestions."
         }
+    }
+
+    func loadInitialProfileData(userId: String) async throws {
+        let user = try await firebaseService.getUser(id: userId)
+        if let user {
+            displayName = user.displayName.trimmed
+            major = user.major?.trimmed ?? ""
+            year = user.year?.trimmed ?? ""
+        }
+
+        if displayName.isEmpty, let authDisplayName = Auth.auth().currentUser?.displayName?.trimmed, authDisplayName.isNotEmpty {
+            displayName = authDisplayName
+        }
+
+        if displayName.isEmpty,
+           let emailLocalPart = Auth.auth().currentUser?.email?.split(separator: "@").first.map(String.init),
+           emailLocalPart.isNotEmpty {
+            displayName = emailLocalPart
+        }
+
+        syncValidationErrors()
     }
 
     func searchClasses(query: String, userId: String) async {
@@ -230,6 +274,103 @@ final class OnboardingViewModel: ObservableObject {
         selectedClasses.removeAll { $0.id == selection.id }
     }
 
+    func validateProfileBasics() -> Bool {
+        let trimmedName = displayName.trimmed
+        let trimmedMajor = major.trimmed
+        let trimmedYear = year.trimmed
+        displayNameError = nil
+        majorError = nil
+
+        guard trimmedName.count >= 2, trimmedName.count <= 50 else {
+            displayNameError = "Display name must be 2-50 characters."
+            errorMessage = displayNameError
+            return false
+        }
+
+        guard trimmedMajor.count >= 2, trimmedMajor.count <= 100 else {
+            majorError = "Major must be 2-100 characters."
+            errorMessage = majorError
+            return false
+        }
+
+        guard yearOptions.contains(trimmedYear) else {
+            errorMessage = "Please select your academic year"
+            return false
+        }
+
+        errorMessage = nil
+        return true
+    }
+
+    func validateDorm() -> Bool {
+        guard selectedDorm.trimmed.isNotEmpty else {
+            errorMessage = "Please select your dorm"
+            return false
+        }
+        errorMessage = nil
+        return true
+    }
+
+    func validateTools() -> Bool {
+        guard !selectedToolNames.isEmpty else {
+            errorMessage = "Add at least 1 study tool to continue"
+            return false
+        }
+        errorMessage = nil
+        return true
+    }
+
+    func validateClasses() -> Bool {
+        guard !selectedClasses.isEmpty else {
+            errorMessage = "Add at least 1 class to continue"
+            return false
+        }
+        errorMessage = nil
+        return true
+    }
+
+    var isProfileBasicsValid: Bool {
+        let trimmedName = displayName.trimmed
+        let trimmedMajor = major.trimmed
+        return trimmedName.count >= 2 && trimmedName.count <= 50 &&
+               trimmedMajor.count >= 2 && trimmedMajor.count <= 100 &&
+               yearOptions.contains(year.trimmed)
+    }
+
+    var isDormValid: Bool {
+        selectedDorm.trimmed.isNotEmpty
+    }
+
+    var isToolsValid: Bool {
+        !selectedToolNames.isEmpty
+    }
+
+    var isClassesValid: Bool {
+        !selectedClasses.isEmpty
+    }
+
+    func filteredMajors(query: String) -> [String] {
+        let trimmed = query.trimmed.lowercased()
+        guard trimmed.isNotEmpty else { return commonMajors }
+        return commonMajors.filter { $0.lowercased().contains(trimmed) }
+    }
+
+    func syncValidationErrors() {
+        displayNameError = nil
+        majorError = nil
+
+        let trimmedName = displayName.trimmed
+        let trimmedMajor = major.trimmed
+
+        if trimmedName.isNotEmpty && !(2...50).contains(trimmedName.count) {
+            displayNameError = "Display name must be 2-50 characters."
+        }
+
+        if trimmedMajor.isNotEmpty && !(2...100).contains(trimmedMajor.count) {
+            majorError = "Major must be 2-100 characters."
+        }
+    }
+
     func completeRequiredProfile(userId: String) async throws {
         var user: User
         if let existingUser = try await firebaseService.getUser(id: userId) {
@@ -257,10 +398,16 @@ final class OnboardingViewModel: ObservableObject {
             user = newUser
         }
 
+        user.displayName = displayName.trimmed
+        user.major = major.trimmed.isNotEmpty ? major.trimmed : nil
+        user.year = year.trimmed.isNotEmpty ? year.trimmed : nil
+
         let uniqueTools = Array(Set(selectedToolNames.map(\.trimmed).filter(\.isNotEmpty))).sorted()
         user.dorm = selectedDorm.trimmed.isNotEmpty ? selectedDorm.trimmed : nil
         user.studyTools = uniqueTools
         user.primaryStudyTools = Array(uniqueTools.prefix(3))
+
+        user.onboardingCompletedAt = Date()
         user.updatedAt = Date()
 
         try await firebaseService.updateUser(user)
@@ -275,6 +422,20 @@ final class OnboardingViewModel: ObservableObject {
             } catch {
                 // Library sync should not block required onboarding completion.
                 print("Onboarding tool sync skipped for \(toolName): \(error.localizedDescription)")
+            }
+        }
+
+        for selection in selectedClasses {
+            do {
+                _ = try await firebaseService.createOrJoinClassForUser(
+                    userId: userId,
+                    courseCode: selection.courseCode,
+                    term: selection.term,
+                    displayName: selection.displayName,
+                    instructorName: selection.instructorName
+                )
+            } catch {
+                print("Onboarding class sync skipped for \(selection.courseCode): \(error.localizedDescription)")
             }
         }
     }
@@ -300,4 +461,3 @@ final class OnboardingViewModel: ObservableObject {
             }
     }
 }
-

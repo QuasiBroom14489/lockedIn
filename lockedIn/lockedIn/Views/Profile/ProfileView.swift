@@ -91,34 +91,25 @@ struct ProfileView: View {
             SettingsView()
         }
         .sheet(isPresented: $showAddClass) {
-            AddClassSheetView(
-                suggestions: viewModel.classSuggestions,
-                onSearchChanged: { query in
-                    Task { await viewModel.searchGlobalClassSuggestions(query: query) }
+            CatalogClassPickerView(
+                catalogCourses: viewModel.catalogCourses,
+                isLoading: viewModel.isLoadingCatalog,
+                errorMessage: viewModel.classErrorMessage,
+                selectedSchool: $viewModel.selectedCatalogSchool,
+                searchQuery: $viewModel.catalogSearchQuery,
+                onSchoolChanged: {
+                    Task { await viewModel.searchCatalogCourses() }
                 },
-                onCreate: { courseCode, displayName, instructorName in
-                    let didSave = await viewModel.addOrJoinClass(
-                        courseCode: courseCode,
-                        displayName: displayName,
-                        instructorName: instructorName
-                    )
-                    if didSave {
-                        classSuccessMessage = "Class added."
-                        selectedClassForDetail = viewModel.classItems.first(where: { $0.global.id == GlobalClass.normalizedId(from: courseCode) })
-                    }
-                    return didSave
+                onSearchChanged: {
+                    Task { await viewModel.searchCatalogCourses() }
                 },
-                onJoinExisting: { globalClass in
-                    let didSave = await viewModel.addOrJoinClass(
-                        courseCode: globalClass.courseCode,
-                        displayName: globalClass.displayName,
-                        instructorName: globalClass.instructorName
-                    )
-                    if didSave {
-                        classSuccessMessage = "Joined class."
-                        selectedClassForDetail = viewModel.classItems.first(where: { $0.global.id == globalClass.id })
+                onJoin: { course, term in
+                    let didJoin = await viewModel.joinCatalogCourse(course, term: term)
+                    if didJoin {
+                        classSuccessMessage = "Joined \(course.courseCode)."
+                        selectedClassForDetail = viewModel.classItems.first(where: { $0.global.id == course.id })
                     }
-                    return didSave
+                    return didJoin
                 }
             )
         }
@@ -265,7 +256,8 @@ struct ProfileView: View {
                 Spacer()
                 if viewModel.isCurrentUser {
                     Button {
-                        Task { await viewModel.searchGlobalClassSuggestions(query: "") }
+                        viewModel.catalogSearchQuery = ""
+                        Task { await viewModel.loadCatalogCourses() }
                         showAddClass = true
                     } label: {
                         Label("Add Class", systemImage: "plus")
@@ -589,11 +581,11 @@ struct StatsCard: View {
 
             // Stats Grid
             HStack(spacing: 16) {
-                // Total Time
+                // Total Time - don't animate raw seconds, show formatted time
                 GlassStatCard(
                     icon: "clock.fill",
                     iconRotation: clockRotation,
-                    value: animated ? user.totalFocusedSeconds : nil,
+                    value: nil,
                     displayValue: user.formattedTotalTime,
                     label: "Total Time",
                     color: AppColors.gold,
