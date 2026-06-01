@@ -34,6 +34,17 @@ class AuthService: ObservableObject {
         currentUser?.uid
     }
 
+    // Test/demo accounts allowed to bypass @nd.edu restriction
+    private static let allowedTestEmails: Set<String> = [
+        "dlj1999@gmail.com",
+        "lockedin.appstore.review@gmail.com"
+    ]
+
+    func isAllowedEmail(_ email: String) -> Bool {
+        let normalizedEmail = email.trimmed.lowercased()
+        return normalizedEmail.hasSuffix("@nd.edu") || Self.allowedTestEmails.contains(normalizedEmail)
+    }
+
     func isNDEmail(_ email: String) -> Bool {
         email.trimmed.lowercased().hasSuffix("@nd.edu")
     }
@@ -54,15 +65,15 @@ class AuthService: ObservableObject {
             throw AuthError.googleAccountMissingEmail
         }
 
-        if !isNDEmail(email) {
+        if !isAllowedEmail(email) {
             try Auth.auth().signOut()
             throw AuthError.googleNonNDEmailRejected
         }
 
         let userDoc = try await FirebaseService.shared.getUser(id: result.user.uid)
         if userDoc == nil {
-            let displayName = result.user.displayName?.trimmed
-            let fallbackName = displayName?.isEmpty == false ? displayName! : email.components(separatedBy: "@").first ?? "Student"
+            let trimmedName = result.user.displayName?.trimmed
+            let fallbackName = (trimmedName?.isEmpty == false ? trimmedName : nil) ?? email.components(separatedBy: "@").first ?? "Student"
             let newUser = User(
                 id: result.user.uid,
                 email: email,
@@ -105,9 +116,7 @@ class AuthService: ObservableObject {
         do {
             try await userDocRef.delete()
         } catch {
-            // Log but don't throw - Auth user is already deleted
-            // Orphaned Firestore data can be cleaned up via Cloud Function or admin
-            print("Warning: Auth user deleted but Firestore cleanup failed for userId=\(userId): \(error.localizedDescription)")
+            // Auth user is already deleted - orphaned Firestore data can be cleaned up later
         }
     }
 

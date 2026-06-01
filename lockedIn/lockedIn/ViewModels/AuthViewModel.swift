@@ -75,7 +75,7 @@ class AuthViewModel: ObservableObject {
             try await authService.refreshCurrentUser()
 
             guard let signedInEmail = authService.currentUser?.email,
-                  authService.isNDEmail(signedInEmail)
+                  authService.isAllowedEmail(signedInEmail)
             else {
                 try? authService.signOut()
                 throw AuthError.googleNonNDEmailRejected
